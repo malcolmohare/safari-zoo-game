@@ -16,6 +16,7 @@ const Zoo = (() => {
     { id: 'jeep',   name: 'Safari Jeep',  emoji: '🚙', x: 1290, y: GRID_H + 80, w: 150, h: 100 },
   ];
 
+  const VIEW_TOP = 66, VIEW_BOTTOM = 46;  // screen space kept clear for the top bar and bottom hints
   let canvas, ctx, W = 0, H = 0, zoom = 1;
   let t = 0;
   const keeper = { x: GRID_W / 2, y: GRID_H + 260, flip: false, moving: false, step: 0 };
@@ -35,7 +36,8 @@ const Zoo = (() => {
     W = Math.max(1, r.width); H = Math.max(1, r.height);
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
-    zoom = clamp(Math.min(W / 1150, H / 820), 0.5, 1.25);
+    // Fit the whole zoo on screen when possible; on small screens the camera follows the keeper.
+    zoom = clamp(Math.min(W / WORLD_W, viewH() / WORLD_H), 0.45, 1.1);
   }
 
   // Back at the zoo after a safari: stand next to the truck.
@@ -181,8 +183,10 @@ const Zoo = (() => {
 
   }
 
+  function viewH() { return Math.max(100, H - VIEW_TOP - VIEW_BOTTOM); }
+
   function updateCamera(dt) {
-    const vw = W / zoom, vh = H / zoom;
+    const vw = W / zoom, vh = viewH() / zoom;
     cam.x = lerp(cam.x, keeper.x, Math.min(1, dt * 6));
     cam.y = lerp(cam.y, keeper.y, Math.min(1, dt * 6));
     cam.x = vw >= WORLD_W ? WORLD_W / 2 : clamp(cam.x, vw / 2, WORLD_W - vw / 2);
@@ -259,7 +263,7 @@ const Zoo = (() => {
     ctx.fillStyle = '#5f8f45';
     ctx.fillRect(0, 0, W, H);
     ctx.save();
-    ctx.translate(W / 2, H / 2);
+    ctx.translate(W / 2, VIEW_TOP + viewH() / 2);
     ctx.scale(zoom, zoom);
     ctx.translate(-cam.x, -cam.y);
 
@@ -437,15 +441,57 @@ const Zoo = (() => {
     }
   }
 
+  // The zookeeper is drawn with shapes (not an emoji) so it shows up on every system.
   function drawKeeper() {
-    const bob = keeper.moving ? Math.abs(Math.sin(keeper.step)) * 4 : 0;
+    const x = keeper.x, y = keeper.y;
+    const bob = keeper.moving ? Math.abs(Math.sin(keeper.step)) * 3 : 0;
+    const swing = keeper.moving ? Math.sin(keeper.step) * 5 : 0;
+    const dir = keeper.flip ? 1 : -1;
+    ctx.save();
+    // Draw a bit larger than life so the keeper is easy to spot when the whole zoo is on screen.
+    ctx.translate(x, y); ctx.scale(1.5, 1.5); ctx.translate(-x, -y);
+
+    // pulsing "you are here" ring
+    const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+    ctx.strokeStyle = `rgba(255,236,90,${0.55 + 0.4 * pulse})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(x, y + 18, 26 + pulse * 4, 10 + pulse * 1.5, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath(); ctx.ellipse(keeper.x, keeper.y + 14, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
-    drawEmoji(ctx, '🧑‍🌾', keeper.x, keeper.y - 4 - bob, 40, keeper.flip);
+    ctx.beginPath(); ctx.ellipse(x, y + 18, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+    const top = y - 30 - bob;
+    // legs
+    ctx.fillStyle = '#5a4630';
+    ctx.fillRect(x - 8 + swing * 0.4, top + 30, 6, 16 - Math.max(0, swing) * 0.3);
+    ctx.fillRect(x + 2 - swing * 0.4, top + 30, 6, 16 + Math.min(0, swing) * 0.3);
+    // boots
+    ctx.fillStyle = '#2e2418';
+    ctx.fillRect(x - 9 + swing * 0.4, top + 44, 8, 4);
+    ctx.fillRect(x + 1 - swing * 0.4, top + 44, 8, 4);
+    // body (khaki shirt)
+    ctx.fillStyle = '#c9a25e';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 12, top + 10, 24, 24, 6) : ctx.rect(x - 12, top + 10, 24, 24); ctx.fill();
+    // arms
+    ctx.fillStyle = '#b38c4c';
+    ctx.fillRect(x - 16, top + 13 - swing * 0.3, 5, 16);
+    ctx.fillRect(x + 11, top + 13 + swing * 0.3, 5, 16);
+    // head
+    ctx.fillStyle = '#f0c391';
+    ctx.beginPath(); ctx.arc(x, top + 2, 10, 0, Math.PI * 2); ctx.fill();
+    // eye, facing the walking direction
+    ctx.fillStyle = '#2b2b2b';
+    ctx.beginPath(); ctx.arc(x + dir * 4, top + 2, 1.8, 0, Math.PI * 2); ctx.fill();
+    // safari hat
+    ctx.fillStyle = '#7a5a30';
+    ctx.beginPath(); ctx.ellipse(x, top - 5, 16, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#8f6c3c';
+    ctx.beginPath(); ctx.ellipse(x, top - 9, 9, 6, 0, Math.PI, 0); ctx.fill();
+
     if (Game.s.carrying) {
       const sp = SPECIES[Game.s.carrying.sp];
-      drawEmoji(ctx, sp.emoji, keeper.x, keeper.y - 46 - bob * 0.5, 34, keeper.flip);
+      drawEmoji(ctx, sp.emoji, x, top - 28 - bob * 0.5, 34, keeper.flip);
     }
+    ctx.restore();
   }
 
   function drawPrompt() {
