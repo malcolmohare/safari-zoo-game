@@ -37,7 +37,9 @@ const Zoo = (() => {
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     // Fit the whole zoo on screen when possible; on small screens the camera follows the keeper.
-    zoom = clamp(Math.min(W / WORLD_W, viewH() / WORLD_H), 0.45, 1.1);
+    const fit = Math.min(W / WORLD_W, viewH() / WORLD_H);
+    // If the whole zoo would be too tiny (phones), fill the screen's longer side and scroll the other way.
+    zoom = fit >= 0.45 ? Math.min(fit, 1.1) : clamp(Math.max(W / WORLD_W, viewH() / WORLD_H), 0.38, 0.7);
   }
 
   // Back at the zoo after a safari: stand next to the truck.
@@ -160,15 +162,19 @@ const Zoo = (() => {
     updateCamera(dt);
     if (UI.isModalOpen()) { keeper.moving = false; return; }
 
-    let dx = 0, dy = 0;
+    let dx = 0, dy = 0, mag = 1;
     if (input.down('KeyA', 'ArrowLeft')) dx -= 1;
     if (input.down('KeyD', 'ArrowRight')) dx += 1;
     if (input.down('KeyW', 'ArrowUp')) dy -= 1;
     if (input.down('KeyS', 'ArrowDown')) dy += 1;
+    if (input.axis.active && Math.hypot(input.axis.x, input.axis.y) > 0.15) {
+      dx = input.axis.x; dy = input.axis.y;
+      mag = Math.min(1, Math.hypot(dx, dy) * 1.2);
+    }
     keeper.moving = dx !== 0 || dy !== 0;
     if (keeper.moving) {
       const len = Math.hypot(dx, dy);
-      const vx = dx / len * KEEPER_SPEED * dt, vy = dy / len * KEEPER_SPEED * dt;
+      const vx = dx / len * KEEPER_SPEED * mag * dt, vy = dy / len * KEEPER_SPEED * mag * dt;
       const rects = solids();
       const nx = clamp(keeper.x + vx, KEEPER_R, WORLD_W - KEEPER_R);
       if (!hits(nx, keeper.y, rects)) keeper.x = nx;
@@ -504,7 +510,8 @@ const Zoo = (() => {
   function drawPrompt() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const text = !UI.isModalOpen() && promptFor(target);
+    let text = !UI.isModalOpen() && promptFor(target);
+    if (text && Touch.enabled) text = text.replace(/^E: /, '').replace(' (E)', '');
     const pill = (txt, y, color) => {
       ctx.font = 'bold 16px system-ui, sans-serif';
       const w = ctx.measureText(txt).width + 28;
@@ -519,7 +526,7 @@ const Zoo = (() => {
     if (toast) pill(toast.text, H * 0.2, '#fff');
     if (Game.s.carrying && !text) pill(`Carrying a ${SPECIES[Game.s.carrying.sp].name} — take it to a glowing enclosure`, H - 70, '#b8ffa8');
     ctx.font = 'bold 13px system-ui, sans-serif';
-    const hint = 'WASD / Arrows: walk   •   E: interact';
+    const hint = Touch.enabled ? 'Drag to walk   •   Tap ✋ to use' : 'WASD / Arrows: walk   •   E: interact';
     const hw = ctx.measureText(hint).width + 20;
     ctx.fillStyle = 'rgba(20,28,18,0.7)';
     ctx.fillRect(W - hw - 10, H - 36, hw, 26);
@@ -528,5 +535,7 @@ const Zoo = (() => {
     ctx.textBaseline = 'alphabetic';
   }
 
-  return { init, resize, update, render, arriveHome, showToast, debug: () => ({ keeper, plotRect, BUILDINGS }) };
+  function hasTarget() { return !!target; }
+
+  return { init, resize, update, render, arriveHome, showToast, hasTarget, debug: () => ({ keeper, plotRect, BUILDINGS }) };
 })();

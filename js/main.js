@@ -4,6 +4,7 @@ const Input = {
   keys: new Set(),
   justPressed: new Set(),
   mouse: { x: 0, y: 0, down: false },
+  axis: { x: 0, y: 0, active: false },   // touch joystick, -1..1
   down(...codes) { return codes.some((c) => this.keys.has(c)); },
   pressed(code) { return this.justPressed.has(code); },
   endFrame() { this.justPressed.clear(); },
@@ -18,6 +19,7 @@ const App = {
     Zoo.init(document.getElementById('zoo-canvas'));
     Safari.init(document.getElementById('safari-canvas'));
     UI.init();
+    Touch.init();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -85,6 +87,7 @@ const App = {
       Zoo.update(dt, Input);
       Zoo.render();
     }
+    Touch.sync(this.scene);
     Input.endFrame();
     requestAnimationFrame((tt) => this.loop(tt));
   },

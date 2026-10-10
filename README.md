@@ -36,6 +36,16 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | Go home | Drive back to base camp and press E |
 | Pause | Esc (press Q while paused to call a tow truck) |
 
+**On phones and tablets** the game switches to touch controls automatically.
+
+| Action | Touch |
+| --- | --- |
+| Walk / drive | Drag your thumb on the left side of the screen. A joystick appears under it; the jeep turns to face where you push. |
+| Use (zoo) | Tap ✋ when you're next to something |
+| Fire a net | Hold 🕸️ |
+| Go home | Tap 🏁 at base camp |
+| Pause / tow truck | Tap ⏸ |
+
 ## How it works
 
 - **The zoo:** walk to the 🚙 jeep to go on safari. When you come back, your catch waits in the 🚚 truck. Carry each animal (one at a time) to an enclosure that matches its home region. You start with a single plot. Walk up to a 🪧 for-sale sign to buy another (each plot costs more than the last), to an empty plot to build an enclosure, to an enclosure to expand it or sell animals, to the 🔧 Garage for jeep and net upgrades, and to the 🏢 Office for amenities, the income forecast and the field guide.
@@ -55,6 +65,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | `js/zoo.js` | The zoo map view (enclosures, wandering animals, visitors) |
 | `js/ui.js` | Sidebar shop and the pop-up dialogs |
 | `js/main.js` | Input, switching between scenes, main loop |
+| `js/touch.js` | Touch joystick and on-screen buttons for phones |
 | `js/util.js` | Helpers, emoji sprite cache, synthesized sound effects |
 
 Graphics are emoji drawn on a canvas, and sounds are generated with WebAudio, so there are no asset files.

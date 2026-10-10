@@ -430,10 +430,24 @@ const Safari = (() => {
     const canDrive = S.outOfFuelT < 0;
 
     // Driving
-    const up = canDrive && input.down('KeyW', 'ArrowUp');
-    const down = canDrive && input.down('KeyS', 'ArrowDown');
+    let up = canDrive && input.down('KeyW', 'ArrowUp');
+    let down = canDrive && input.down('KeyS', 'ArrowDown');
     const left = canDrive && input.down('KeyA', 'ArrowLeft');
     const right = canDrive && input.down('KeyD', 'ArrowRight');
+    let steer = (right ? 1 : 0) - (left ? 1 : 0);
+    // Touch joystick: the jeep turns to face the stick direction and drives that way.
+    const ax = input.axis;
+    if (canDrive && ax.active && Math.hypot(ax.x, ax.y) > 0.25) {
+      const diff = angleDiff(j.angle, Math.atan2(ax.y, ax.x));
+      if (Math.abs(diff) < 2.2 || j.speed > 40) {
+        up = true;
+        steer = clamp(diff * 2.5, -1, 1);
+      } else {
+        // Stick points behind you: back up while swinging the nose around.
+        down = true;
+        steer = -clamp(diff * 2.5, -1, 1);
+      }
+    }
     const ter = terrainAt(j.x, j.y);
     let mult = ter.water ? 0.45 : BIOMES[ter.biome].speed;
     mult = 1 - (1 - mult) * (1 - st.terrainGrip);
@@ -445,7 +459,6 @@ const Safari = (() => {
     if (j.speed > top) j.speed = lerp(j.speed, top, Math.min(1, dt * 4));
     j.speed = Math.max(-top * 0.45, j.speed);
 
-    const steer = (right ? 1 : 0) - (left ? 1 : 0);
     j.angle += steer * st.turnRate * dt * clamp(j.speed / 110, -1, 1);
 
     const grip = ter.ice ? 1.6 : 9;
@@ -879,7 +892,7 @@ const Safari = (() => {
 
     // Reload indicator near cursor-ish: small bar under fuel
     // Minimap (top-right)
-    const mmH = Math.min(300, H * 0.5), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
+    const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
     const mx = W - mmW - 12, my = 12;
     panel(mx - 4, my - 4, mmW + 8, mmH + 8);
     ctx.drawImage(S.world.terrain, mx, my, mmW, mmH);
@@ -906,11 +919,13 @@ const Safari = (() => {
     // Bottom: hints / prompts
     ctx.textAlign = 'center';
     if (S.atBase && (S.leftBase || S.t > 3)) {
-      const txt = S.cargo.length ? `Press E to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : 'Press E to end the safari and head home';
+      const how = Touch.enabled ? 'Tap 🏁' : 'Press E';
+      const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Auto-fire on (Space to fire manually)' : 'Space: fire net from the front';
-      banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
+      if (Touch.enabled) banner(`Drag on the left to drive  •  ${S.stats.autoFire ? 'Auto-fire on' : 'Hold 🕸️ to fire'}`, H - 30, '#fff', 13);
+      else banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
     }
 
     if (S.msg) banner(S.msg.text, H * 0.22, '#fff', 18);
@@ -922,18 +937,25 @@ const Safari = (() => {
       ctx.font = 'bold 36px system-ui, sans-serif';
       ctx.fillText('Paused', W / 2, H / 2 - 30);
       ctx.font = '16px system-ui, sans-serif';
-      ctx.fillText('Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12);
+      if (!Touch.enabled) ctx.fillText('Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12);
     }
     ctx.textBaseline = 'alphabetic';
   }
 
   function banner(text, y, color, size = 16) {
     ctx.font = `bold ${size}px system-ui, sans-serif`;
+    // Shrink long messages to fit narrow (portrait phone) screens.
+    const tw = ctx.measureText(text).width;
+    if (tw > W - 40) { size = Math.max(9, size * (W - 40) / tw); ctx.font = `bold ${size}px system-ui, sans-serif`; }
     const w = ctx.measureText(text).width + 30;
     panel(W / 2 - w / 2, y - size * 0.9, w, size * 1.8);
     ctx.fillStyle = color;
     ctx.fillText(text, W / 2, y);
   }
 
-  return { init, start, update, render, resize, debug: () => S };
+  function touchState() {
+    return { paused: !!(S && S.paused), canGoHome: !!(S && S.atBase && (S.leftBase || S.t > 3)) };
+  }
+
+  return { init, start, update, render, resize, touchState, debug: () => S };
 })();
