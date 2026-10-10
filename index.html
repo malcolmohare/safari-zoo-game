@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Safari Zoo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦒</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="zoo-screen" class="screen">
+    <div id="zoo-view"><canvas id="zoo-canvas"></canvas></div>
+    <aside id="sidebar">
+      <header class="title">
+        <h1>🦒 Safari Zoo</h1>
+        <div class="title-btns">
+          <button id="btn-mute" class="icon-btn" data-action="mute" title="Sound on/off">🔊</button>
+          <button class="icon-btn" data-action="reset" title="Start a new zoo">♻️</button>
+        </div>
+      </header>
+      <div class="stats">
+        <div><small>Money</small><b id="stat-money">$0</b></div>
+        <div><small>Day</small><b id="stat-day">1</b></div>
+        <div><small>Appeal</small><b id="stat-appeal">0</b></div>
+        <div><small>Visitors</small><b id="stat-visitors">0</b></div>
+      </div>
+      <button class="btn big safari-btn" data-action="safari">🚙 Go on Safari</button>
+      <nav class="tabs">
+        <button data-tab="zoo" class="active">🏞️ Zoo</button>
+        <button data-tab="garage">🔧 Garage</button>
+        <button data-tab="amenities">🍿 Amenities</button>
+      </nav>
+      <div id="tab-content"></div>
+    </aside>
+  </div>
+
+  <div id="safari-screen" class="screen hidden">
+    <canvas id="safari-canvas"></canvas>
+  </div>
+
+  <div id="modal" class="hidden"><div id="modal-box"></div></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/safari.js"></script>
+  <script src="js/zoo.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
