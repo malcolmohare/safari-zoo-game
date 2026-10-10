@@ -1,29 +1,49 @@
 // The top-down "go catch animals" part of the game.
 
 const Safari = (() => {
-  const WORLD = 3600;
-  const TERRAIN_SCALE = 4;           // terrain texture is WORLD / 4 pixels
-  const BASE = { x: WORLD / 2, y: WORLD - 260, r: 170 };
-  const CELL = 200;                  // obstacle spatial-grid cell size
-  const TARGET_POP = { savanna: 30, jungle: 24, tundra: 20 };
+  // The world is a tall strip: base camp at the bottom, then each region further north.
+  const WORLD_W = 3000;
+  const BAND = 1400;                                   // height of each region
+  const WORLD_H = BAND * REGION_ORDER.length + 400;    // savanna gets extra room for base camp
+  const TERRAIN_SCALE = 5;                             // terrain texture is world size / 5 pixels
+  const BASE = { x: WORLD_W / 2, y: WORLD_H - 220, r: 170 };
+  const CELL = 200;                                    // obstacle spatial-grid cell size
+  const POP_PER_REGION = 24;
   const JEEP_R = 20;
+
+  // Obstacles and decoration per region: [emojis, count, collision radius, draw size]
+  const REGION_FEATURES = {
+    savanna:  { ponds: 5,  ice: 0,  obstacles: [[['🌳'], 60, 16, 52], [['🪨'], 30, 18, 36]], decor: ['🌾', '🌾', '🌼'] },
+    wetlands: { ponds: 26, ice: 0,  obstacles: [[['🌳'], 45, 16, 52], [['🪨'], 15, 18, 34]], decor: ['🌾', '🪷', '🌿', '🌾'] },
+    jungle:   { ponds: 3,  ice: 0,  obstacles: [[['🌴', '🌳', '🌴'], 300, 16, 56], [['🪨'], 20, 18, 36]], decor: ['🌿', '🍄', '🌺'] },
+    desert:   { ponds: 2,  ice: 0,  obstacles: [[['🌵'], 90, 13, 44], [['🪨'], 45, 18, 38]], decor: ['🦴', '🐚', '🌾'] },
+    tundra:   { ponds: 0,  ice: 10, obstacles: [[['🌲'], 110, 15, 50], [['🪨'], 30, 18, 36]], decor: ['❄️', '🌨️'] },
+  };
 
   let canvas, ctx, W = 0, H = 0;
   let S = null;       // runtime state for the current safari
-  let onEnd = null;   // callback(cargo, towed)
+  let onEnd = null;   // callback(cargo, towed, regionsVisited)
 
   // ---------------- World generation ----------------
 
-  function biomeAt(x, y) {
-    const w = S.world;
-    const p = w.ph;
-    const ty = 1150 + Math.sin(x * 0.0035 + p[0]) * 130 + Math.sin(x * 0.011 + p[1]) * 45;
-    if (y < ty) return 'tundra';
-    const mx = w.jungleLeft ? WORLD - x : x;
-    const jy = 2350 + Math.sin(x * 0.005 + p[2]) * 110;
-    const jx = 1550 + Math.sin(y * 0.004 + p[1]) * 170 + Math.sin(y * 0.013 + p[0]) * 50;
-    if (y < jy && mx > jx) return 'jungle';
-    return 'savanna';
+  // y coordinate of the northern edge of region index k (wavy).
+  function boundaryY(k, x) {
+    const p = S.world.ph;
+    return regionTop(k) + Math.sin(x * 0.004 + p[k % 3]) * 90 + Math.sin(x * 0.013 + p[(k + 1) % 3]) * 35;
+  }
+  // Straight-line top of region k (before waviness).
+  function regionTop(k) { return WORLD_H - 400 - BAND * (k + 1); }
+
+  function regionIndexAt(x, y) {
+    for (let k = 0; k < REGION_ORDER.length - 1; k++) if (y > boundaryY(k, x)) return k;
+    return REGION_ORDER.length - 1;
+  }
+  function biomeAt(x, y) { return REGION_ORDER[regionIndexAt(x, y)]; }
+
+  // 0 at the near (south) edge of a region, 1 at the far (north) edge.
+  function depthInRegion(k, y) {
+    const bottom = k === 0 ? BASE.y : regionTop(k - 1);
+    return clamp((bottom - y) / (bottom - regionTop(k)), 0, 1);
   }
 
   function inCircles(list, x, y, pad = 0) {
@@ -31,53 +51,51 @@ const Safari = (() => {
     return null;
   }
 
+  function randPointIn(biome, minBaseDist = 400) {
+    const k = REGION_ORDER.indexOf(biome);
+    for (let i = 0; i < 200; i++) {
+      const x = rand(80, WORLD_W - 80);
+      const y = rand(Math.max(80, regionTop(k) - 120), Math.min(WORLD_H - 80, (k === 0 ? WORLD_H : regionTop(k - 1)) + 120));
+      if (biomeAt(x, y) !== biome) continue;
+      if (dist(x, y, BASE.x, BASE.y) < minBaseDist) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
   function genWorld() {
     const w = {
       ph: [rand(0, 100), rand(0, 100), rand(0, 100)],
-      jungleLeft: Math.random() < 0.5,
       ponds: [], ice: [], obstacles: [], grid: new Map(), decor: [],
     };
     S.world = w;
 
-    const randPointIn = (biome, minBaseDist = 400) => {
-      for (let i = 0; i < 200; i++) {
-        const x = rand(80, WORLD - 80), y = rand(80, WORLD - 80);
-        if (biomeAt(x, y) !== biome) continue;
-        if (dist(x, y, BASE.x, BASE.y) < minBaseDist) continue;
-        return { x, y };
+    for (const b of REGION_ORDER) {
+      const f = REGION_FEATURES[b];
+      for (let i = 0; i < f.ponds; i++) { const p = randPointIn(b, 450); if (p) w.ponds.push({ ...p, r: rand(60, 150) }); }
+      for (let i = 0; i < f.ice; i++) { const p = randPointIn(b); if (p) w.ice.push({ ...p, r: rand(110, 210) }); }
+    }
+    for (const b of REGION_ORDER) {
+      for (const [emojis, n, r, size] of REGION_FEATURES[b].obstacles) {
+        for (let i = 0; i < n; i++) {
+          const p = randPointIn(b, 300);
+          if (!p || inCircles(w.ponds, p.x, p.y, 20) || inCircles(w.ice, p.x, p.y, 10)) continue;
+          const o = { x: p.x, y: p.y, r, size, emoji: emojis[randInt(0, emojis.length - 1)] };
+          w.obstacles.push(o);
+          const key = Math.floor(o.x / CELL) + ',' + Math.floor(o.y / CELL);
+          if (!w.grid.has(key)) w.grid.set(key, []);
+          w.grid.get(key).push(o);
+        }
       }
-      return null;
-    };
-
-    for (let i = 0; i < 7; i++) { const p = randPointIn('savanna', 450); if (p) w.ponds.push({ ...p, r: rand(70, 150) }); }
-    for (let i = 0; i < 6; i++) { const p = randPointIn('tundra'); if (p) w.ice.push({ ...p, r: rand(110, 210) }); }
-
-    const addObs = (biome, n, emojis, r, size, minBaseDist = 300) => {
-      for (let i = 0; i < n; i++) {
-        const p = randPointIn(biome, minBaseDist);
-        if (!p || inCircles(w.ponds, p.x, p.y, 20) || inCircles(w.ice, p.x, p.y, 10)) continue;
-        const o = { x: p.x, y: p.y, r, size, emoji: emojis[randInt(0, emojis.length - 1)] };
-        w.obstacles.push(o);
-        const key = Math.floor(o.x / CELL) + ',' + Math.floor(o.y / CELL);
-        if (!w.grid.has(key)) w.grid.set(key, []);
-        w.grid.get(key).push(o);
-      }
-    };
-    addObs('savanna', 70, ['🌳'], 16, 52);
-    addObs('savanna', 35, ['🪨'], 18, 36);
-    addObs('jungle', 280, ['🌴', '🌳', '🌴'], 16, 56);
-    addObs('jungle', 25, ['🪨'], 18, 36);
-    addObs('tundra', 110, ['🌲'], 15, 50);
-    addObs('tundra', 35, ['🪨'], 18, 36);
-    // Draw rocks under everything else, trees on top (painter's order by y).
+    }
+    // Painter's order by y so lower things overlap higher ones.
     w.obstacles.sort((a, b) => a.y - b.y);
 
     // Non-colliding ground decoration.
-    for (let i = 0; i < 260; i++) {
-      const x = rand(0, WORLD), y = rand(0, WORLD);
-      const b = biomeAt(x, y);
+    for (let i = 0; i < 500; i++) {
+      const x = rand(0, WORLD_W), y = rand(0, WORLD_H);
       if (inCircles(w.ponds, x, y) || inCircles(w.ice, x, y)) continue;
-      const opts = { savanna: ['🌾', '🌾', '🌼'], jungle: ['🌿', '🍄', '🌺'], tundra: ['❄️', '🌨️'] }[b];
+      const opts = REGION_FEATURES[biomeAt(x, y)].decor;
       w.decor.push({ x, y, emoji: opts[randInt(0, opts.length - 1)], size: rand(14, 22) });
     }
 
@@ -85,27 +103,27 @@ const Safari = (() => {
   }
 
   function renderTerrain(w) {
-    const n = WORLD / TERRAIN_SCALE;
+    const nw = Math.ceil(WORLD_W / TERRAIN_SCALE), nh = Math.ceil(WORLD_H / TERRAIN_SCALE);
     const c = document.createElement('canvas');
-    c.width = c.height = n;
+    c.width = nw; c.height = nh;
     const g = c.getContext('2d');
-    const img = g.createImageData(n, n);
-    const base = { savanna: [214, 190, 118], jungle: [86, 142, 70], tundra: [234, 240, 246] };
-    for (let py = 0; py < n; py++) {
-      for (let px = 0; px < n; px++) {
+    const img = g.createImageData(nw, nh);
+    for (let py = 0; py < nh; py++) {
+      for (let px = 0; px < nw; px++) {
         const x = px * TERRAIN_SCALE, y = py * TERRAIN_SCALE;
-        const col = base[biomeAt(x, y)];
+        const col = BIOMES[biomeAt(x, y)].ground;
         const v = Math.sin(x * 0.02) * Math.cos(y * 0.017) * 6 + Math.sin(x * 0.003 + y * 0.004) * 8 + (Math.random() - 0.5) * 10;
-        const i = (py * n + px) * 4;
+        const i = (py * nw + px) * 4;
         img.data[i] = col[0] + v; img.data[i + 1] = col[1] + v; img.data[i + 2] = col[2] + v; img.data[i + 3] = 255;
       }
     }
     g.putImageData(img, 0, 0);
     const s = 1 / TERRAIN_SCALE;
     for (const p of w.ponds) {
-      g.fillStyle = '#c9b170';
+      const wet = biomeAt(p.x, p.y) === 'wetlands';
+      g.fillStyle = wet ? '#5f7d4a' : '#c9b170';
       g.beginPath(); g.arc(p.x * s, p.y * s, (p.r + 10) * s, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#4f9fd1';
+      g.fillStyle = wet ? '#4b8fa8' : '#4f9fd1';
       g.beginPath(); g.arc(p.x * s, p.y * s, p.r * s, 0, Math.PI * 2); g.fill();
     }
     for (const p of w.ice) {
@@ -143,15 +161,16 @@ const Safari = (() => {
   function spawnGroup(biome, awayFromJeep) {
     let pos = null;
     for (let i = 0; i < 40 && !pos; i++) {
-      const x = rand(100, WORLD - 100), y = rand(100, WORLD - 100);
-      if (biomeAt(x, y) !== biome) continue;
-      if (dist(x, y, BASE.x, BASE.y) < 650) continue;
-      if (awayFromJeep && dist(x, y, S.jeep.x, S.jeep.y) < 750) continue;
-      if (inCircles(S.world.ponds, x, y, 30)) continue;
-      pos = { x, y };
+      const p = randPointIn(biome, 650);
+      if (!p) continue;
+      if (awayFromJeep && dist(p.x, p.y, S.jeep.x, S.jeep.y) < 750) continue;
+      if (inCircles(S.world.ponds, p.x, p.y, 30)) continue;
+      pos = p;
     }
     if (!pos) return;
-    const def = weightedPick(SPECIES_BY_BIOME[biome], (d) => d.rarity);
+    // Rare animals are more likely deep in their region, common ones near its edge.
+    const depth = depthInRegion(REGION_ORDER.indexOf(biome), pos.y);
+    const def = weightedPick(SPECIES_BY_BIOME[biome], (d) => d.rarity <= 3 ? d.rarity * (0.2 + 1.8 * depth) : d.rarity * (1.3 - 0.6 * depth));
     const n = randInt(def.group[0], def.group[1]);
     for (let i = 0; i < n; i++) {
       const x = pos.x + rand(-70, 70), y = pos.y + rand(-70, 70);
@@ -260,8 +279,8 @@ const Safari = (() => {
     a.spd = lerp(a.spd, targetSpd, Math.min(1, dt * 5));
     const nx = a.x + Math.cos(a.dir) * a.spd * dt;
     const ny = a.y + Math.sin(a.dir) * a.spd * dt;
-    const outside = nx < 40 || ny < 40 || nx > WORLD - 40 || ny > WORLD - 40;
-    if (outside || biomeAt(nx, ny) !== def.biome || (!def.flies && inCircles(S.world.ponds, nx, ny)) ||
+    const outside = nx < 40 || ny < 40 || nx > WORLD_W - 40 || ny > WORLD_H - 40;
+    if (outside || biomeAt(nx, ny) !== def.biome || (!def.flies && !def.swims && inCircles(S.world.ponds, nx, ny)) ||
         dist(nx, ny, BASE.x, BASE.y) < BASE.r + 40) {
       // Bump into a boundary: turn away.
       a.dir += Math.PI + rand(-0.6, 0.6);
@@ -344,11 +363,13 @@ const Safari = (() => {
       msg: null, shake: 0, cargoWarnT: 0, respawnT: 0,
       leftBase: false, ended: false, outOfFuelT: -1, paused: false,
       shownPickupTip: false,
+      netsLeft: stats.nets, groundNets: [], netWarnT: 0,
+      region: 0, regionsVisited: new Set(['savanna']),
     };
     genWorld();
-    for (const b of Object.keys(TARGET_POP)) {
+    for (const b of REGION_ORDER) {
       let guard = 0;
-      while (biomeCount(b) < TARGET_POP[b] && guard++ < 50) spawnGroup(b, false);
+      while (biomeCount(b) < POP_PER_REGION && guard++ < 50) spawnGroup(b, false);
     }
     S.cam.x = S.jeep.x; S.cam.y = S.jeep.y;
     resize();
@@ -358,7 +379,7 @@ const Safari = (() => {
   function finish(towed) {
     if (S.ended) return;
     S.ended = true;
-    onEnd(S.cargo.slice(), towed);
+    onEnd(S.cargo.slice(), towed, [...S.regionsVisited]);
   }
 
   // ---------------- Update ----------------
@@ -395,10 +416,7 @@ const Safari = (() => {
     const left = canDrive && input.down('KeyA', 'ArrowLeft');
     const right = canDrive && input.down('KeyD', 'ArrowRight');
     const ter = terrainAt(j.x, j.y);
-    let mult = 1;
-    if (ter.water) mult = 0.45;
-    else if (ter.biome === 'jungle') mult = 0.85;
-    else if (ter.biome === 'tundra') mult = 0.8;
+    let mult = ter.water ? 0.45 : BIOMES[ter.biome].speed;
     mult = 1 - (1 - mult) * (1 - st.terrainGrip);
     const top = st.maxSpeed * mult;
 
@@ -440,12 +458,13 @@ const Safari = (() => {
         }
       }
     }
-    j.x = clamp(j.x, JEEP_R, WORLD - JEEP_R);
-    j.y = clamp(j.y, JEEP_R, WORLD - JEEP_R);
+    j.x = clamp(j.x, JEEP_R, WORLD_W - JEEP_R);
+    j.y = clamp(j.y, JEEP_R, WORLD_H - JEEP_R);
 
     // Dust trail
     if (Math.abs(j.speed) > 80 && Math.random() < dt * 30) {
-      const col = ter.water ? '#d9f0ff' : ter.biome === 'tundra' ? '#ffffff' : ter.biome === 'jungle' ? '#6b8a4a' : '#c8ad74';
+      const g = BIOMES[ter.biome].ground;
+      const col = ter.water ? '#d9f0ff' : ter.biome === 'tundra' ? '#ffffff' : `rgb(${g[0] - 20},${g[1] - 20},${g[2] - 20})`;
       S.particles.push({
         x: j.x - Math.cos(j.angle) * 22 + rand(-6, 6), y: j.y - Math.sin(j.angle) * 22 + rand(-6, 6),
         vx: rand(-20, 20), vy: rand(-20, 20), t: 0, life: 0.6, color: col, r: rand(3, 6),
@@ -456,16 +475,25 @@ const Safari = (() => {
     const lookX = j.x + j.vx * 0.35, lookY = j.y + j.vy * 0.35;
     S.cam.x = lerp(S.cam.x, lookX, Math.min(1, dt * 4));
     S.cam.y = lerp(S.cam.y, lookY, Math.min(1, dt * 4));
-    S.cam.x = clamp(S.cam.x, Math.min(W / 2, WORLD / 2), Math.max(WORLD - W / 2, WORLD / 2));
-    S.cam.y = clamp(S.cam.y, Math.min(H / 2, WORLD / 2), Math.max(WORLD - H / 2, WORLD / 2));
+    S.cam.x = clamp(S.cam.x, Math.min(W / 2, WORLD_W / 2), Math.max(WORLD_W - W / 2, WORLD_W / 2));
+    S.cam.y = clamp(S.cam.y, Math.min(H / 2, WORLD_H / 2), Math.max(WORLD_H - H / 2, WORLD_H / 2));
     S.shake = Math.max(0, S.shake - dt * 30);
 
     // Aiming & shooting
     const aimX = S.cam.x - W / 2 + input.mouse.x, aimY = S.cam.y - H / 2 + input.mouse.y;
     j.turret = dist(aimX, aimY, j.x, j.y) > 30 ? Math.atan2(aimY - j.y, aimX - j.x) : j.angle;
     S.reloadT -= dt;
-    if (canDrive && (input.mouse.down || input.down('Space')) && S.reloadT <= 0) {
+    S.netWarnT -= dt;
+    const wantFire = canDrive && (input.mouse.down || input.down('Space')) && S.reloadT <= 0;
+    if (wantFire && S.netsLeft <= 0) {
+      if (S.netWarnT <= 0) {
+        message(S.groundNets.length ? 'Out of nets! Drive over missed nets to pick them back up.' : 'Out of nets! Head back to base camp.', 2.5);
+        Sfx.error();
+        S.netWarnT = 2.5;
+      }
+    } else if (wantFire) {
       S.reloadT = st.reload;
+      S.netsLeft--;
       const sx = j.x + Math.cos(j.turret) * 20, sy = j.y + Math.sin(j.turret) * 20;
       S.nets.push({
         x: sx, y: sy,
@@ -486,12 +514,44 @@ const Safari = (() => {
       }
       if (!n.dead) {
         for (const o of nearbyObstacles(n.x, n.y)) {
-          if (o.size > 40 && dist(n.x, n.y, o.x, o.y) < o.r) { n.dead = true; burst(n.x, n.y, '#eee', 4); break; }
+          if (o.size > 40 && dist(n.x, n.y, o.x, o.y) < o.r) {
+            n.dead = true;
+            burst(n.x, n.y, '#eee', 4);
+            // Bounce off and land just in front of the obstacle.
+            const a = Math.atan2(n.y - o.y, n.x - o.x);
+            S.groundNets.push({ x: o.x + Math.cos(a) * (o.r + 26), y: o.y + Math.sin(a) * (o.r + 26), rot: n.rot });
+            break;
+          }
         }
       }
-      if (n.traveled > n.max) n.dead = true;
+      if (!n.dead && n.traveled > n.max) {
+        // A miss: the net lands on the ground and can be picked up again.
+        n.dead = true;
+        S.groundNets.push({ x: n.x, y: n.y, rot: n.rot });
+      }
     }
     S.nets = S.nets.filter((n) => !n.dead);
+
+    // Pick up missed nets by driving over them.
+    for (const g of S.groundNets) {
+      if (dist(g.x, g.y, j.x, j.y) < JEEP_R + 18) {
+        g.taken = true;
+        S.netsLeft++;
+        floatText(g.x, g.y - 20, '+1 net', '#ffffff', 14);
+        Sfx.hit();
+      }
+    }
+    S.groundNets = S.groundNets.filter((g) => !g.taken);
+
+    // Region tracking
+    const ri = regionIndexAt(j.x, j.y);
+    if (ri !== S.region) {
+      S.region = ri;
+      const b = REGION_ORDER[ri], def = BIOMES[b];
+      const isNew = !Game.s.regionsVisited[b] && !S.regionsVisited.has(b);
+      S.regionsVisited.add(b);
+      message(isNew ? `New region discovered: the ${def.name} ${def.icon}!` : `Entering the ${def.name} ${def.icon}`, 3);
+    }
 
     // Animals
     S.cargoWarnT -= dt;
@@ -500,7 +560,7 @@ const Safari = (() => {
     S.respawnT -= dt;
     if (S.respawnT <= 0) {
       S.respawnT = 1.5;
-      for (const b of Object.keys(TARGET_POP)) if (biomeCount(b) < TARGET_POP[b] - 3) spawnGroup(b, true);
+      for (const b of REGION_ORDER) if (biomeCount(b) < POP_PER_REGION - 3) spawnGroup(b, true);
     }
 
     // Particles & floats
@@ -604,7 +664,7 @@ const Safari = (() => {
 
     // Terrain
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(S.world.terrain, 0, 0, WORLD, WORLD);
+    ctx.drawImage(S.world.terrain, 0, 0, WORLD_W, WORLD_H);
 
     const vis = (x, y, m = 80) => x > camX - m && x < camX + W + m && y > camY - m && y < camY + H + m;
 
@@ -654,6 +714,24 @@ const Safari = (() => {
         ctx.fillRect(a.x - w / 2, a.y - def.size * 0.75, w * frac, 5);
       }
       if (a.state === 'charge') drawEmoji(ctx, '💢', a.x + def.size * 0.4, a.y - def.size * 0.6, 16);
+    }
+
+    // Missed nets lying on the ground
+    for (const g of S.groundNets) if (vis(g.x, g.y)) drawNet(g.x, g.y, 10, g.rot, 0.75);
+
+    // Region signposts on the track north
+    ctx.textAlign = 'center';
+    for (let k = 0; k < REGION_ORDER.length - 1; k++) {
+      const sx = BASE.x + 80, sy = boundaryY(k, sx) + 50;
+      if (!vis(sx, sy, 200)) continue;
+      const next = BIOMES[REGION_ORDER[k + 1]];
+      ctx.fillStyle = '#6b4a2a';
+      ctx.fillRect(sx - 3, sy - 6, 6, 40);
+      ctx.fillStyle = '#8a5f35';
+      ctx.fillRect(sx - 70, sy - 36, 140, 32);
+      ctx.fillStyle = '#ffeec2';
+      ctx.font = 'bold 14px system-ui, sans-serif';
+      ctx.fillText(`↑ ${next.icon} ${next.name}`, sx, sy - 15);
     }
 
     // Nets in flight
@@ -710,13 +788,14 @@ const Safari = (() => {
     ctx.textBaseline = 'middle';
 
     // Top-left: fuel + cargo
-    const cargoW = Math.max(220, st.cargoMax * 30 + 34);
-    panel(12, 12, cargoW, 92);
+    const cargoW = Math.max(240, st.cargoMax * 30 + 34);
+    panel(12, 12, cargoW, 120);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillText(`Day ${Game.s.day} — Safari`, 24, 30);
+    const reg = BIOMES[REGION_ORDER[S.region]];
+    ctx.fillText(`Day ${Game.s.day} — ${reg.icon} ${reg.name}`, 24, 30);
     // fuel bar
-    const fFrac = S.fuel / st.fuelMax;
+    const fFrac = clamp(S.fuel / st.fuelMax, 0, 1);
     ctx.fillText('⛽', 22, 56);
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.fillRect(46, 48, cargoW - 100, 16);
@@ -733,13 +812,28 @@ const Safari = (() => {
       ctx.strokeRect(x - 12, y - 12, 25, 25);
       if (S.cargo[i]) drawEmoji(ctx, SPECIES[S.cargo[i]].emoji, x + 0.5, y + 0.5, 20);
     }
+    // nets left
+    ctx.font = 'bold 14px system-ui, sans-serif';
+    ctx.fillStyle = S.netsLeft > 0 ? '#fff' : '#ff7070';
+    ctx.fillText(`🕸️ Nets: ${S.netsLeft} / ${st.nets}`, 24, 116);
+    if (S.reloadT > 0 && S.netsLeft > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(150, 112, 60 * clamp(S.reloadT / st.reload, 0, 1), 6);
+    }
 
     // Reload indicator near cursor-ish: small bar under fuel
     // Minimap (top-right)
-    const mm = Math.min(170, W * 0.28), mx = W - mm - 12, my = 12;
-    panel(mx - 4, my - 4, mm + 8, mm + 8);
-    ctx.drawImage(S.world.terrain, mx, my, mm, mm);
-    const ms = mm / WORLD;
+    const mmH = Math.min(300, H * 0.5), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
+    const mx = W - mmW - 12, my = 12;
+    panel(mx - 4, my - 4, mmW + 8, mmH + 8);
+    ctx.drawImage(S.world.terrain, mx, my, mmW, mmH);
+    // region icons down the left edge of the minimap
+    for (let k = 0; k < REGION_ORDER.length; k++) {
+      const b = REGION_ORDER[k];
+      const cy = my + (regionTop(k) + BAND / 2) * ms;
+      const known = Game.s.regionsVisited[b] || S.regionsVisited.has(b);
+      drawEmoji(ctx, known ? BIOMES[b].icon : '❔', mx - 16, cy, 16);
+    }
     ctx.fillStyle = '#8b5a2b';
     ctx.beginPath(); ctx.arc(mx + BASE.x * ms, my + BASE.y * ms, 5, 0, Math.PI * 2); ctx.fill();
     for (const a of S.animals) {

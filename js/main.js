@@ -15,7 +15,7 @@ const App = {
 
   start() {
     Game.load();
-    Zoo.init(document.getElementById('zoo-canvas'), (i) => UI.onPlotSelected(i));
+    Zoo.init(document.getElementById('zoo-canvas'));
     Safari.init(document.getElementById('safari-canvas'));
     UI.init();
     this.bindInput();
@@ -29,7 +29,7 @@ const App = {
   bindInput() {
     const gameKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
     window.addEventListener('keydown', (e) => {
-      if (this.scene === 'safari' && gameKeys.has(e.code)) e.preventDefault();
+      if (gameKeys.has(e.code) && !UI.isModalOpen()) e.preventDefault();
       if (!e.repeat) Input.justPressed.add(e.code);
       Input.keys.add(e.code);
     });
@@ -56,18 +56,20 @@ const App = {
 
   startSafari() {
     Sfx.ensure();
+    if (Game.s.carrying) Game.returnCarried();
     Input.keys.clear();
     Input.mouse.down = false;
     this.setScene('safari');
     Input.mouse.x = window.innerWidth / 2;
     Input.mouse.y = window.innerHeight / 3;
-    Safari.start((cargo, towed) => this.endSafari(cargo, towed));
+    Safari.start((cargo, towed, regions) => this.endSafari(cargo, towed, regions));
   },
 
-  endSafari(cargo, towed) {
-    const report = Game.endDay(cargo, towed);
+  endSafari(cargo, towed, regions) {
+    const report = Game.endDay(cargo, towed, regions);
+    Input.keys.clear();
     this.setScene('zoo');
-    Zoo.select(-1);
+    Zoo.arriveHome();
     UI.refresh();
     UI.showReport(report);
     Sfx.cash();
@@ -80,7 +82,8 @@ const App = {
       Safari.update(dt, Input);
       Safari.render();
     } else {
-      Zoo.render(dt);
+      Zoo.update(dt, Input);
+      Zoo.render();
     }
     Input.endFrame();
     requestAnimationFrame((tt) => this.loop(tt));

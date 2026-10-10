@@ -1,7 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v2';
+const SAVE_KEY = 'safari-zoo-save-v3';
 
 function newGameState() {
   const plots = [];
@@ -21,6 +21,9 @@ function newGameState() {
     amenities,
     nextId: 1,
     discovered: {},   // species key -> true once caught
+    regionsVisited: { savanna: true },
+    holding: [],      // caught animals waiting in the truck: [{ id, sp }]
+    carrying: null,   // animal the zookeeper is carrying: { id, sp } or null
     lastReport: null,
     seenIntro: false,
     totalEarned: 0,
@@ -101,6 +104,7 @@ const Game = {
       turnRate: 2.7 + u.tires * 0.3,
       terrainGrip: u.tires * 0.2,                // reduces terrain slowdown by 20%/level
       fuelMax: 30 + u.fuel * 12,
+      nets: 6 + u.netCount * 3,
       cargoMax: 3 + u.cargo * 2,
       reload: 0.75 * Math.pow(0.8, u.reload),
       netPower: 0.5 + u.netStrength * 0.35,
@@ -178,44 +182,58 @@ const Game = {
     return true;
   },
 
-  // Put an animal into the best enclosure for it. Returns plot index or -1.
-  placeAnimal(sp) {
-    const biome = SPECIES[sp].biome;
-    let best = -1, bestScore = -Infinity;
-    this.s.plots.forEach((p, i) => {
-      const e = p.enclosure;
-      if (!e || e.biome !== biome || e.animals.length >= e.capacity) return;
-      // Prefer enclosures that already have this species, then the emptiest.
-      const same = e.animals.some((a) => a.sp === sp) ? 100 : 0;
-      const score = same + (e.capacity - e.animals.length);
-      if (score > bestScore) { bestScore = score; best = i; }
-    });
-    if (best >= 0) this.s.plots[best].enclosure.animals.push({ id: this.s.nextId++, sp });
-    return best;
+  // ---- Truck (holding) & carrying ----
+  carryFromHolding(id) {
+    if (this.s.carrying) return false;
+    const i = this.s.holding.findIndex((a) => a.id === id);
+    if (i < 0) return false;
+    this.s.carrying = this.s.holding.splice(i, 1)[0];
+    this.save();
+    return true;
   },
 
-  // Called when a safari ends: place animals, then run one day of the zoo.
-  endDay(cargo, towed) {
-    const s = this.s;
-    const placed = [], traded = [];
-    let tradeIncome = 0;
-    for (const sp of cargo) {
-      s.discovered[sp] = true;
-      const where = this.placeAnimal(sp);
-      if (where >= 0) placed.push(sp);
-      else {
-        traded.push(sp);
-        tradeIncome += SPECIES[sp].appeal * ECON.overflowMultiplier;
-      }
-    }
+  returnCarried() {
+    if (!this.s.carrying) return false;
+    this.s.holding.push(this.s.carrying);
+    this.s.carrying = null;
+    this.save();
+    return true;
+  },
 
+  sellFromHolding(id) {
+    const i = this.s.holding.findIndex((a) => a.id === id);
+    if (i < 0) return false;
+    const a = this.s.holding.splice(i, 1)[0];
+    this.s.money += SPECIES[a.sp].appeal * ECON.sellMultiplier;
+    Sfx.cash();
+    this.save();
+    return true;
+  },
+
+  // Returns null on success, or a reason string.
+  placeCarried(plotIdx) {
+    const a = this.s.carrying;
+    const enc = this.s.plots[plotIdx].enclosure;
+    if (!a || !enc) return 'Nothing to place.';
+    const def = SPECIES[a.sp];
+    if (enc.biome !== def.biome) return `${def.name}s need a ${BIOMES[def.biome].name} enclosure.`;
+    if (enc.animals.length >= enc.capacity) return 'This enclosure is full. Expand it or build another.';
+    enc.animals.push(a);
+    this.s.carrying = null;
+    this.save();
+    return null;
+  },
+
+  // Called when a safari ends. The zoo was open while you were out, so the day's
+  // income is based on the animals already in enclosures. The new catch goes into the truck.
+  endDay(cargo, towed, regionsVisited) {
+    const s = this.s;
     const visitors = Math.max(0, Math.round(this.expectedVisitors() * rand(0.9, 1.1)));
     const per = this.spendPerVisitor();
     const lines = {
       tickets: Math.round(visitors * per.ticket),
       snacks: Math.round(visitors * per.snack),
       gifts: Math.round(visitors * per.gift),
-      trades: tradeIncome,
       upkeep: -this.dailyUpkeep(),
       tow: towed ? -ECON.towFee : 0,
     };
@@ -223,7 +241,16 @@ const Game = {
     s.money = Math.max(0, s.money + net);
     s.totalEarned += Math.max(0, net);
 
-    const report = { day: s.day, placed, traded, visitors, lines, net, towed, appeal: this.appeal().total };
+    const newSpecies = [];
+    for (const sp of cargo) {
+      if (!s.discovered[sp] && !newSpecies.includes(sp)) newSpecies.push(sp);
+      s.discovered[sp] = true;
+      s.holding.push({ id: s.nextId++, sp });
+    }
+    const newRegions = regionsVisited.filter((r) => !s.regionsVisited[r]);
+    for (const r of regionsVisited) s.regionsVisited[r] = true;
+
+    const report = { day: s.day, caught: cargo, newSpecies, newRegions, visitors, lines, net, towed, appeal: this.appeal().total };
     s.lastReport = report;
     s.day++;
     this.save();
