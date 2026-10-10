@@ -30,8 +30,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | Action | Keys |
 | --- | --- |
 | Drive | W A S D or the arrow keys |
-| Aim | Mouse |
-| Fire a net | Left click or Space (hold it down to keep firing) |
+| Fire a net | Space (hold it down to keep firing). Nets fire straight out of the front of the jeep. |
 | Pick up a netted animal | Drive into it before its timer ring runs out |
 | Pick up a missed net | Drive over it |
 | Go home | Drive back to base camp and press E |
@@ -39,8 +38,9 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 
 ## How it works
 
-- **The zoo:** walk to the 🚙 jeep to go on safari. When you come back, your catch waits in the 🚚 truck. Carry each animal (one at a time) to an enclosure that matches its home region. Walk up to an empty plot to build an enclosure, to an enclosure to expand it or sell animals, to the 🔧 Garage for jeep and net upgrades, and to the 🏢 Office for land, amenities and the field guide.
+- **The zoo:** walk to the 🚙 jeep to go on safari. When you come back, your catch waits in the 🚚 truck. Carry each animal (one at a time) to an enclosure that matches its home region. You start with a single plot. Walk up to a 🪧 for-sale sign to buy another (each plot costs more than the last), to an empty plot to build an enclosure, to an enclosure to expand it or sell animals, to the 🔧 Garage for jeep and net upgrades, and to the 🏢 Office for amenities, the income forecast and the field guide.
 - **Regions:** the wild is a long strip with five regions, each further from base camp than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals, but you need more fuel and a faster jeep to get there and back. Within a region, the rarest animals live on its far side.
+- **Auto-Aim Turret:** a Garage upgrade that makes the turret lock onto animals in a cone in front of the jeep. Each level widens the cone, and from level 3 it fires by itself.
 - **Nets:** you only carry a limited number of nets (upgrade the Net Rack for more). Missed nets land on the ground and can be picked back up. Big animals need several nets, and a partly-netted animal shakes the net off if you leave it alone. Lions, hippos, crocodiles, gorillas, tigers, scorpions, cobras, rhinos and polar bears **charge your jeep**, and every hit costs you fuel.
 - **Fuel:** this is your time limit. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
 - **Income:** the zoo stays open while you're on safari. Visitors depend on the total appeal of the animals in your enclosures (not the ones still in the truck), with a bonus for each different species. Each visitor pays for a ticket, plus extra if you have a snack bar or gift shop. Each animal costs food every day.

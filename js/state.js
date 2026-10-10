@@ -1,11 +1,11 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v3';
+const SAVE_KEY = 'safari-zoo-save-v4';
 
 function newGameState() {
   const plots = [];
-  for (let i = 0; i < ECON.plotCols * ECON.plotRows; i++) plots.push({ enclosure: null });
+  for (let i = 0; i < ECON.plotCols * ECON.plotRows; i++) plots.push({ owned: i === 0, enclosure: null });
   plots[0].enclosure = { biome: 'savanna', capacity: ECON.startCapacity, animals: [] };
   const upgrades = {};
   for (const k of Object.keys(UPGRADES)) upgrades[k] = 0;
@@ -16,7 +16,6 @@ function newGameState() {
     money: ECON.startMoney,
     day: 1,
     plots,
-    landLevel: 0,
     upgrades,
     amenities,
     nextId: 1,
@@ -59,8 +58,10 @@ const Game = {
   },
 
   // ---- Queries ----
-  unlockedPlots() { return ECON.plotCols * (1 + this.s.landLevel); },
-  isPlotUnlocked(i) { return i < this.unlockedPlots(); },
+  isPlotUnlocked(i) { return this.s.plots[i].owned; },
+  ownedPlots() { return this.s.plots.filter((p) => p.owned).length; },
+  // Price of the next plot (undefined once you own them all).
+  landCost() { return ECON.landCosts[this.ownedPlots() - 1]; },
 
   allAnimals() {
     const out = [];
@@ -110,6 +111,8 @@ const Game = {
       netPower: 0.5 + u.netStrength * 0.35,
       netSpeed: 650 + u.netRange * 120,
       netRange: 380 + u.netRange * 90,
+      aimCone: AUTO_AIM_CONE[u.autoAim] * Math.PI / 180,  // half-angle in radians
+      autoFire: u.autoAim >= AUTO_FIRE_LEVEL,
     };
   },
 
@@ -140,11 +143,11 @@ const Game = {
     return true;
   },
 
-  buyLand() {
-    const cost = ECON.landCosts[this.s.landLevel];
-    if (cost === undefined) return false;
+  buyPlot(i) {
+    const cost = this.landCost();
+    if (cost === undefined || this.s.plots[i].owned) return false;
     if (!this.spend(cost)) return false;
-    this.s.landLevel++;
+    this.s.plots[i].owned = true;
     this.save();
     return true;
   },

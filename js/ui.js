@@ -91,14 +91,14 @@ const UI = (() => {
   }
 
   function landCard() {
-    const cost = ECON.landCosts[Game.s.landLevel];
+    const cost = Game.landCost();
     if (cost === undefined) return `<div class="card"><h3>🗺️ Land</h3><p class="muted">You own all the land there is!</p></div>`;
-    return `<div class="card"><h3>🗺️ Land</h3><p>Buy the next row of land to get 4 more plots for enclosures.</p>${btn('Buy land', 'land', {}, cost, 'wide')}</div>`;
+    return `<div class="card"><h3>🗺️ Land</h3><p>You own ${Game.ownedPlots()} of ${Game.s.plots.length} plots. To buy another, walk up to a 🪧 for-sale sign. The next plot costs <b>${fmtMoney(cost)}</b>, and each one after that costs more.</p></div>`;
   }
 
-  function openLand() {
-    open(() => `<h2>🪧 Land for sale</h2>${money()}${landCard()}`, (action) => {
-      if (action === 'land' && Game.buyLand()) close();
+  function openLand(plotIdx) {
+    open(() => `<h2>🪧 Plot for sale</h2>${money()}<p>Buy this plot to build another enclosure on it. Each plot you buy makes the next one more expensive.</p>${btn('Buy this plot', 'buy', {}, Game.landCost(), 'wide')}`, (action) => {
+      if (action === 'buy' && Game.buyPlot(plotIdx)) close();
     });
   }
 
@@ -126,7 +126,6 @@ const UI = (() => {
       html += fieldGuide();
       return html;
     }, (action, d) => {
-      if (action === 'land') Game.buyLand();
       if (action === 'amenity') Game.buyAmenity(d.key);
     });
   }
@@ -222,10 +221,10 @@ const UI = (() => {
       <p>You've just bought a tiny zoo with one empty savanna enclosure. Time to fill it!</p>
       <ol>
         <li>Walk your zookeeper (WASD / arrows) to the <b>🚙 jeep</b> and press <b>E</b> to go on safari.</li>
-        <li>Drive with WASD, aim with the mouse and click to fire nets. You only have a few nets, but missed ones can be picked back up.</li>
+        <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>
         <li>Drive into netted animals to load them, then return to base camp and press E before your fuel runs out.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. Carry each animal to an enclosure that matches its home region.</li>
-        <li>Visitors pay to see animals in your enclosures. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>.</li>
+        <li>Visitors pay to see animals in your enclosures. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>, and walk up to 🪧 for-sale signs to buy more plots.</li>
       </ol>
       <p class="muted">The wild has five regions, each further north than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals but need a faster jeep and more fuel to reach.</p>
       ${btn('Let\'s go!', 'ok', {}, null, 'big')}`, () => {

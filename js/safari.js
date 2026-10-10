@@ -300,6 +300,25 @@ const Safari = (() => {
     if (Math.abs(Math.cos(a.dir)) > 0.2 && a.spd > 5) a.facing = Math.cos(a.dir) > 0 ? -1 : 1;
   }
 
+  // Closest animal inside the auto-aim cone that still needs netting.
+  function findAimTarget() {
+    const j = S.jeep, st = S.stats;
+    let best = null, bestScore = Infinity;
+    for (const a of S.animals) {
+      if (!a.alive || a.state === 'tangled') continue;
+      const d = dist(a.x, a.y, j.x, j.y);
+      if (d > st.netRange) continue;
+      const off = Math.abs(angleDiff(j.angle, Math.atan2(a.y - j.y, a.x - j.x)));
+      if (off > st.aimCone) continue;
+      // Skip animals that nets already in flight will tangle.
+      const incoming = S.nets.filter((n) => n.target === a).length * st.netPower;
+      if (a.netHits + incoming >= a.def.hp) continue;
+      const score = d * (1 + off);   // prefer close and straight ahead
+      if (score < bestScore) { bestScore = score; best = a; }
+    }
+    return best;
+  }
+
   function hitAnimal(a) {
     const def = a.def;
     a.netHits += S.stats.netPower;
@@ -480,11 +499,21 @@ const Safari = (() => {
     S.shake = Math.max(0, S.shake - dt * 30);
 
     // Aiming & shooting
-    const aimX = S.cam.x - W / 2 + input.mouse.x, aimY = S.cam.y - H / 2 + input.mouse.y;
-    j.turret = dist(aimX, aimY, j.x, j.y) > 30 ? Math.atan2(aimY - j.y, aimX - j.x) : j.angle;
+    // Nets fire straight out of the front, unless the Auto-Aim Turret has locked onto an animal.
+    S.target = st.aimCone > 0 ? findAimTarget() : null;
+    let aimAng = j.angle;
+    if (S.target) {
+      // Lead the target a little so nets land where it's going.
+      const a = S.target, t = dist(a.x, a.y, j.x, j.y) / st.netSpeed;
+      const px = a.x + Math.cos(a.dir) * a.spd * t, py = a.y + Math.sin(a.dir) * a.spd * t;
+      aimAng = Math.atan2(py - j.y, px - j.x);
+    }
+    j.turret += angleDiff(j.turret, aimAng) * Math.min(1, dt * 18);
     S.reloadT -= dt;
     S.netWarnT -= dt;
-    const wantFire = canDrive && (input.mouse.down || input.down('Space')) && S.reloadT <= 0;
+    const manualFire = input.mouse.down || input.down('Space');
+    const autoFire = st.autoFire && S.target && S.netsLeft > 0;
+    const wantFire = canDrive && (manualFire || autoFire) && S.reloadT <= 0;
     if (wantFire && S.netsLeft <= 0) {
       if (S.netWarnT <= 0) {
         message(S.groundNets.length ? 'Out of nets! Drive over missed nets to pick them back up.' : 'Out of nets! Head back to base camp.', 2.5);
@@ -494,12 +523,13 @@ const Safari = (() => {
     } else if (wantFire) {
       S.reloadT = st.reload;
       S.netsLeft--;
-      const sx = j.x + Math.cos(j.turret) * 20, sy = j.y + Math.sin(j.turret) * 20;
+      j.turret = aimAng;
+      const sx = j.x + Math.cos(aimAng) * 20, sy = j.y + Math.sin(aimAng) * 20;
       S.nets.push({
         x: sx, y: sy,
-        vx: Math.cos(j.turret) * st.netSpeed + j.vx * 0.5,
-        vy: Math.sin(j.turret) * st.netSpeed + j.vy * 0.5,
-        traveled: 0, max: st.netRange, rot: 0,
+        vx: Math.cos(aimAng) * st.netSpeed + j.vx * 0.5,
+        vy: Math.sin(aimAng) * st.netSpeed + j.vy * 0.5,
+        traveled: 0, max: st.netRange, rot: 0, target: S.target,
       });
       Sfx.shoot();
     }
@@ -734,6 +764,32 @@ const Safari = (() => {
       ctx.fillText(`↑ ${next.icon} ${next.name}`, sx, sy - 15);
     }
 
+    // Auto-aim cone and target lock
+    if (S.stats.aimCone > 0) {
+      const j = S.jeep, c = S.stats.aimCone, r = S.stats.netRange;
+      ctx.fillStyle = 'rgba(255,240,120,0.07)';
+      ctx.strokeStyle = 'rgba(255,240,120,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(j.x, j.y);
+      ctx.arc(j.x, j.y, r, j.angle - c, j.angle + c);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+    if (S.target) {
+      const a = S.target, rr = a.def.size * 0.6 + 4;
+      ctx.strokeStyle = '#ff4d4d';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      for (const k of [0, 1, 2, 3]) {
+        const ang = k * Math.PI / 2 + S.t * 2;
+        ctx.moveTo(a.x + Math.cos(ang) * (rr - 6), a.y + Math.sin(ang) * (rr - 6));
+        ctx.lineTo(a.x + Math.cos(ang) * (rr + 6), a.y + Math.sin(ang) * (rr + 6));
+      }
+      ctx.stroke();
+    }
+
     // Nets in flight
     for (const n of S.nets) drawNet(n.x, n.y, 9 + n.traveled / n.max * 7, n.rot);
 
@@ -853,7 +909,8 @@ const Safari = (() => {
       const txt = S.cargo.length ? `Press E to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : 'Press E to end the safari and head home';
       banner(txt, H - 60, '#ffe680');
     } else if (S.t < 12) {
-      banner('WASD / Arrows: drive   •   Mouse: aim   •   Click / Space: fire net   •   Esc: pause', H - 30, '#fff', 13);
+      const fireHint = S.stats.autoFire ? 'Auto-fire on (Space to fire manually)' : 'Space: fire net from the front';
+      banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
     }
 
     if (S.msg) banner(S.msg.text, H * 0.22, '#fff', 18);

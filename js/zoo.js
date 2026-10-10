@@ -107,7 +107,7 @@ const Zoo = (() => {
         return s.holding.length ? `E: Unload animals (${s.holding.length} waiting)` : 'The truck is empty';
       case 'plot': {
         const i = tg.idx, enc = s.plots[i].enclosure;
-        if (!Game.isPlotUnlocked(i)) return 'E: Buy this land';
+        if (!Game.isPlotUnlocked(i)) return `E: Buy this plot (${fmtMoney(Game.landCost())})`;
         if (!enc) return carry ? 'Build an enclosure here first (E)' : 'E: Build an enclosure';
         const b = BIOMES[enc.biome];
         if (carry) {
@@ -134,7 +134,7 @@ const Zoo = (() => {
         break;
       case 'plot': {
         const i = tg.idx, enc = s.plots[i].enclosure;
-        if (!Game.isPlotUnlocked(i)) UI.openLand();
+        if (!Game.isPlotUnlocked(i)) UI.openLand(i);
         else if (!enc) UI.openBuild(i);
         else if (s.carrying) {
           const name = SPECIES[s.carrying.sp].name;
@@ -196,7 +196,12 @@ const Zoo = (() => {
   // ---- Visitors walking the paths ----
   function pathXs() { const a = []; for (let c = 0; c <= COLS; c++) a.push(G / 2 + c * (PW + G)); return a; }
   function pathYs() { const a = []; for (let r = 0; r <= ROWS; r++) a.push(G / 2 + r * (PH + G)); return a; }
-  function minPathRow() { return ROWS - (1 + Game.s.landLevel); }
+  // Top-most path row visitors use: the one above the highest row with an owned plot.
+  function minPathRow() {
+    let rows = 1;
+    Game.s.plots.forEach((p, i) => { if (p.owned) rows = Math.max(rows, Math.floor(i / COLS) + 1); });
+    return ROWS - rows;
+  }
 
   function syncVisitors() {
     const last = Game.s.lastReport ? Game.s.lastReport.visitors : 0;
@@ -328,7 +333,9 @@ const Zoo = (() => {
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.font = 'bold 14px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('LAND FOR SALE', p.x + p.w / 2, p.y + p.h / 2 + 30);
+      ctx.fillText('FOR SALE', p.x + p.w / 2, p.y + p.h / 2 + 30);
+      ctx.fillStyle = '#ffe680';
+      ctx.fillText(fmtMoney(Game.landCost()), p.x + p.w / 2, p.y + p.h / 2 + 50);
     } else if (!enc) {
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.fillRect(p.x, p.y, p.w, p.h);

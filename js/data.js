@@ -71,6 +71,7 @@ const UPGRADES = {
   netStrength: { name: 'Heavy Nets',     icon: '🕸️', desc: 'Stronger nets: fewer shots to tangle an animal', max: 4, baseCost: 200, growth: 1.9 },
   reload:      { name: 'Net Reloader',   icon: '🔄', desc: 'Fire nets faster', max: 5, baseCost: 110, growth: 1.7 },
   netRange:    { name: 'Net Cannon',     icon: '🎯', desc: 'Faster, longer-range nets', max: 4, baseCost: 100, growth: 1.8 },
+  autoAim:     { name: 'Auto-Aim Turret', icon: '📡', desc: 'Turret locks onto animals in a cone ahead. Wider cone each level; fires by itself from level 3', max: 5, baseCost: 150, growth: 1.8 },
 };
 
 // Zoo-wide amenities. Explicit cost per level.
@@ -94,8 +95,13 @@ const ECON = {
   expandCostPerSlot: 80,   // cost = this * current capacity
   plotCols: 4,
   plotRows: 3,
-  landCosts: [600, 2000],  // each purchase unlocks another row of 4 plots
+  // Price of each extra plot, in the order you buy them (you start owning one plot).
+  landCosts: [150, 250, 400, 600, 850, 1150, 1500, 1900, 2400, 3000, 3700],
 };
+
+// Auto-aim cone half-angle (degrees) per Auto-Aim Turret level; auto-fire from AUTO_FIRE_LEVEL.
+const AUTO_AIM_CONE = [0, 15, 30, 45, 70, 100];
+const AUTO_FIRE_LEVEL = 3;
 
 function upgradeCost(key, level) {
   const u = UPGRADES[key];
