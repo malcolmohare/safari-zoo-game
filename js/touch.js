@@ -1,8 +1,8 @@
 // Touch controls for phones and tablets: a floating joystick on the left half of the
 // screen plus on-screen buttons. Buttons feed the same Input key codes the keyboard uses.
 
-const Touch = (() => {
-  const enabled = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+const TouchControls = (() => {
+  const enabled = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   const RADIUS = 60;   // joystick throw in CSS pixels
   const stick = { id: null, ox: 0, oy: 0 };
   let ui = null;

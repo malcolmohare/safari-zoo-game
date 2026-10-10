@@ -19,7 +19,7 @@ const App = {
     Zoo.init(document.getElementById('zoo-canvas'));
     Safari.init(document.getElementById('safari-canvas'));
     UI.init();
-    Touch.init();
+    TouchControls.init();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -87,7 +87,7 @@ const App = {
       Zoo.update(dt, Input);
       Zoo.render();
     }
-    Touch.sync(this.scene);
+    TouchControls.sync(this.scene);
     Input.endFrame();
     requestAnimationFrame((tt) => this.loop(tt));
   },

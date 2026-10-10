@@ -97,7 +97,10 @@ canvas { display: block; width: 100%; height: 100%; }
 /* ---- Touch controls ---- */
 #touch-ui { display: none; }
 body.touch #touch-ui { display: block; }
-body.touch, body.touch canvas { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Only the game canvases and touch buttons swallow gestures; menus must still scroll. */
+body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.touch canvas { touch-action: none; }
+#modal-box { touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 #stick-base { display: none; position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
   background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.35); z-index: 5; pointer-events: none; }
 #stick-knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%;
@@ -122,4 +125,11 @@ body.touch, body.touch canvas { touch-action: none; -webkit-user-select: none; u
   .hud-stat b { font-size: 13px; }
   #hud { gap: 4px; top: 6px; left: 6px; right: 6px; }
   #modal-box { padding: 16px; }
+}
+
+/* Very narrow screens (e.g. a folded phone's cover screen): stack upgrade buttons under their text. */
+@media (max-width: 480px) {
+  .upgrade { flex-wrap: wrap; }
+  .upgrade .btn, .upgrade .maxed { width: 100%; justify-content: space-between; }
+  .animal-list li { flex-wrap: wrap; }
 }

@@ -919,12 +919,12 @@ const Safari = (() => {
     // Bottom: hints / prompts
     ctx.textAlign = 'center';
     if (S.atBase && (S.leftBase || S.t > 3)) {
-      const how = Touch.enabled ? 'Tap 🏁' : 'Press E';
+      const how = TouchControls.enabled ? 'Tap 🏁' : 'Press E';
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Auto-fire on (Space to fire manually)' : 'Space: fire net from the front';
-      if (Touch.enabled) banner(`Drag on the left to drive  •  ${S.stats.autoFire ? 'Auto-fire on' : 'Hold 🕸️ to fire'}`, H - 30, '#fff', 13);
+      if (TouchControls.enabled) banner(`Drag on the left to drive  •  ${S.stats.autoFire ? 'Auto-fire on' : 'Hold 🕸️ to fire'}`, H - 30, '#fff', 13);
       else banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
     }
 
@@ -937,7 +937,7 @@ const Safari = (() => {
       ctx.font = 'bold 36px system-ui, sans-serif';
       ctx.fillText('Paused', W / 2, H / 2 - 30);
       ctx.font = '16px system-ui, sans-serif';
-      if (!Touch.enabled) ctx.fillText('Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12);
+      if (!TouchControls.enabled) ctx.fillText('Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12);
     }
     ctx.textBaseline = 'alphabetic';
   }

@@ -511,7 +511,7 @@ const Zoo = (() => {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     let text = !UI.isModalOpen() && promptFor(target);
-    if (text && Touch.enabled) text = text.replace(/^E: /, '').replace(' (E)', '');
+    if (text && TouchControls.enabled) text = text.replace(/^E: /, '').replace(' (E)', '');
     const pill = (txt, y, color) => {
       ctx.font = 'bold 16px system-ui, sans-serif';
       const w = ctx.measureText(txt).width + 28;
@@ -526,7 +526,7 @@ const Zoo = (() => {
     if (toast) pill(toast.text, H * 0.2, '#fff');
     if (Game.s.carrying && !text) pill(`Carrying a ${SPECIES[Game.s.carrying.sp].name} — take it to a glowing enclosure`, H - 70, '#b8ffa8');
     ctx.font = 'bold 13px system-ui, sans-serif';
-    const hint = Touch.enabled ? 'Drag to walk   •   Tap ✋ to use' : 'WASD / Arrows: walk   •   E: interact';
+    const hint = TouchControls.enabled ? 'Drag to walk   •   Tap ✋ to use' : 'WASD / Arrows: walk   •   E: interact';
     const hw = ctx.measureText(hint).width + 20;
     ctx.fillStyle = 'rgba(20,28,18,0.7)';
     ctx.fillRect(W - hw - 10, H - 36, hw, 26);

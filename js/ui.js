@@ -220,12 +220,12 @@ const UI = (() => {
       <h2>🦁 Welcome to Safari Zoo!</h2>
       <p>You've just bought a tiny zoo with one empty savanna enclosure. Time to fill it!</p>
       <ol>
-        ${Touch.enabled
+        ${TouchControls.enabled
           ? `<li>Drag your thumb to walk your zookeeper to the <b>🚙 jeep</b>, then tap <b>✋</b> to go on safari.</li>
         <li>On safari, drag on the left side of the screen to drive and hold <b>🕸️</b> to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`
           : `<li>Walk your zookeeper (WASD / arrows) to the <b>🚙 jeep</b> and press <b>E</b> to go on safari.</li>
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
-        <li>Drive into netted animals to load them, then return to base camp and ${Touch.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
+        <li>Drive into netted animals to load them, then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. Carry each animal to an enclosure that matches its home region.</li>
         <li>Visitors pay to see animals in your enclosures. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>, and walk up to 🪧 for-sale signs to buy more plots.</li>
       </ol>
