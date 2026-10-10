@@ -35,7 +35,7 @@ const SPECIES = {
 const SPECIES_BY_BIOME = {};
 for (const [key, def] of Object.entries(SPECIES)) {
   def.key = key;
-  def.upkeep = Math.ceil(def.appeal * 0.8);
+  def.upkeep = Math.ceil(def.appeal * 0.4);
   (SPECIES_BY_BIOME[def.biome] = SPECIES_BY_BIOME[def.biome] || []).push(def);
 }
 
@@ -43,29 +43,29 @@ for (const [key, def] of Object.entries(SPECIES)) {
 const UPGRADES = {
   engine:      { name: 'Engine',        icon: '⚙️', desc: 'Higher top speed & acceleration', max: 5, baseCost: 120, growth: 1.7 },
   tires:       { name: 'Off-road Tires', icon: '🛞', desc: 'Better steering, less slowdown in jungle/snow/water', max: 4, baseCost: 100, growth: 1.8 },
-  fuel:        { name: 'Fuel Tank',     icon: '⛽', desc: '+20 seconds per safari', max: 5, baseCost: 90,  growth: 1.7 },
+  fuel:        { name: 'Fuel Tank',     icon: '⛽', desc: '+12 seconds per safari', max: 6, baseCost: 90,  growth: 1.7 },
   cargo:       { name: 'Cargo Cage',    icon: '📦', desc: '+2 animals per trip', max: 5, baseCost: 150, growth: 1.75 },
   reload:      { name: 'Net Reloader',  icon: '🔄', desc: 'Fire nets faster', max: 5, baseCost: 110, growth: 1.7 },
-  netStrength: { name: 'Heavy Nets',    icon: '🕸️', desc: 'Each net counts as more (big animals need several)', max: 4, baseCost: 200, growth: 1.9 },
+  netStrength: { name: 'Heavy Nets',    icon: '🕸️', desc: 'Stronger nets: fewer shots to tangle an animal', max: 4, baseCost: 200, growth: 1.9 },
   netRange:    { name: 'Net Cannon',    icon: '🎯', desc: 'Faster, longer-range nets', max: 4, baseCost: 100, growth: 1.8 },
 };
 
 // Zoo-wide amenities. Explicit cost per level.
 const AMENITIES = {
-  snack:     { name: 'Snack Bar',   icon: '🍿', desc: '+$1.50 per visitor per level', costs: [200, 550, 1300] },
-  gift:      { name: 'Gift Shop',   icon: '🧸', desc: '+$2.50 per visitor per level', costs: [450, 1100, 2600] },
+  snack:     { name: 'Snack Bar',   icon: '🍿', desc: '+$0.50 per visitor per level', costs: [200, 550, 1300] },
+  gift:      { name: 'Gift Shop',   icon: '🧸', desc: '+$1 per visitor per level', costs: [450, 1100, 2600] },
   marketing: { name: 'Billboards',  icon: '📣', desc: '+20% visitors per level',      costs: [300, 700, 1500, 3200] },
 };
 
 const ECON = {
-  startMoney: 100,
-  ticketPrice: 5,
-  baseVisitors: 8,
-  visitorsPerAppeal: 3,
-  varietyBonus: 0.15,      // per extra unique species
-  sellMultiplier: 10,      // selling an animal from an enclosure = appeal * this
-  overflowMultiplier: 8,   // caught but no room = traded away for appeal * this
-  towFee: 40,
+  startMoney: 50,
+  ticketPrice: 2,
+  baseVisitors: 3,
+  visitorsPerAppeal: 1,
+  varietyBonus: 0.08,      // per extra unique species
+  sellMultiplier: 4,       // selling an animal from an enclosure = appeal * this
+  overflowMultiplier: 3,   // caught but no room = traded away for appeal * this
+  towFee: 15,
   startCapacity: 3,
   expandStep: 2,
   maxCapacity: 11,

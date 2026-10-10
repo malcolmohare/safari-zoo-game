@@ -30,7 +30,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 
 - **Habitats:** there are three biomes: savanna (around base camp), jungle (one side of the map) and tundra (far north). Animals can only live in an enclosure of their own habitat. If you catch an animal with no room for it, it's traded to another zoo for a bit of cash.
 - **Nets:** big animals need several nets, and a partly-netted animal shakes the net off if you leave it alone. Lions, rhinos, gorillas, tigers and polar bears **charge your jeep**, and every hit costs you fuel.
-- **Fuel:** this is your time limit. If you run out, a tow truck brings you home for a fee.
+- **Fuel:** this is your time limit. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
 - **Income:** visitors = based on total animal appeal × a variety bonus for each different species. Every visitor pays for a ticket, plus extra if you have a snack bar or gift shop. Each animal costs food every day.
 
 ## Code layout

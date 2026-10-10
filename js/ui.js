@@ -163,7 +163,7 @@ const UI = (() => {
       <div class="row"><span>Top speed</span><b>${st.maxSpeed}</b></div>
       <div class="row"><span>Fuel (seconds)</span><b>${st.fuelMax}</b></div>
       <div class="row"><span>Cargo space</span><b>${st.cargoMax}</b></div>
-      <div class="row"><span>Net power</span><b>${st.netPower}</b></div>
+      <div class="row"><span>Net power</span><b>${st.netPower.toFixed(2)}</b></div>
       <div class="row"><span>Reload</span><b>${st.reload.toFixed(2)}s</b></div>
       <div class="row"><span>Net range</span><b>${st.netRange}</b></div></div>`;
     for (const [k, u] of Object.entries(UPGRADES)) {

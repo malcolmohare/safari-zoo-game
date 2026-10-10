@@ -340,7 +340,7 @@ const Safari = (() => {
       cam: { x: BASE.x, y: BASE.y },
       animals: [], nets: [], particles: [], floats: [],
       cargo: [], caughtThisTrip: 0,
-      fuel: stats.fuelMax, reloadT: 0, t: 0,
+      fuel: stats.fuelMax, reloadT: 0, t: 0, crashT: 0,
       msg: null, shake: 0, cargoWarnT: 0, respawnT: 0,
       leftBase: false, ended: false, outOfFuelT: -1, paused: false,
       shownPickupTip: false,
@@ -371,6 +371,7 @@ const Safari = (() => {
       return;
     }
     S.t += dt;
+    S.crashT -= dt;
     const st = S.stats, j = S.jeep;
 
     // Fuel
@@ -426,8 +427,16 @@ const Safari = (() => {
         const impact = -(j.vx * nx + j.vy * ny);
         if (impact > 0) {
           j.vx += nx * impact * 1.4; j.vy += ny * impact * 1.4;
-          j.speed *= 0.4;
-          if (impact > 120) { S.shake = Math.min(10, impact / 30); Sfx.bump(); }
+          j.speed *= 0.25;
+          if (impact > 90 && S.crashT <= 0) {
+            // Crashing costs fuel: roughly 1s per 60 units of impact speed.
+            const cost = Math.max(1, Math.round(impact / 60));
+            S.fuel = Math.max(0, S.fuel - cost);
+            S.crashT = 0.6;
+            S.shake = Math.min(12, impact / 25);
+            floatText(j.x, j.y - 30, `Crash! -${cost}s fuel`, '#ff7070', 16);
+            Sfx.bump();
+          }
         }
       }
     }

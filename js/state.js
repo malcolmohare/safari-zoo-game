@@ -1,6 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
-const SAVE_KEY = 'safari-zoo-save-v1';
+// Bump the version when balance changes enough that old saves would be misleading.
+const SAVE_KEY = 'safari-zoo-save-v2';
 
 function newGameState() {
   const plots = [];
@@ -83,8 +84,8 @@ const Game = {
   spendPerVisitor() {
     return {
       ticket: ECON.ticketPrice,
-      snack: 1.5 * this.s.amenities.snack,
-      gift: 2.5 * this.s.amenities.gift,
+      snack: 0.5 * this.s.amenities.snack,
+      gift: 1 * this.s.amenities.gift,
     };
   },
 
@@ -99,10 +100,10 @@ const Game = {
       accel: 320 + u.engine * 50,
       turnRate: 2.7 + u.tires * 0.3,
       terrainGrip: u.tires * 0.2,                // reduces terrain slowdown by 20%/level
-      fuelMax: 60 + u.fuel * 20,
+      fuelMax: 30 + u.fuel * 12,
       cargoMax: 3 + u.cargo * 2,
       reload: 0.75 * Math.pow(0.8, u.reload),
-      netPower: 1 + u.netStrength * 0.75,
+      netPower: 0.5 + u.netStrength * 0.35,
       netSpeed: 650 + u.netRange * 120,
       netRange: 380 + u.netRange * 90,
     };
