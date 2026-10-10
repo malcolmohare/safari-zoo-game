@@ -46,3 +46,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | `js/util.js` | Helpers, emoji sprite cache, synthesized sound effects |
 
 Graphics are emoji drawn on a canvas, and sounds are generated with WebAudio, so there are no asset files.
+
+## License
+
+Copyright (c) 2026 malcolmohare. All rights reserved. You're welcome to play the game, but the code may not be copied, modified or redistributed without permission. See [LICENSE](LICENSE).
