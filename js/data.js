@@ -104,6 +104,7 @@ const UPGRADES = {
   netStrength: { name: 'Heavy Nets',      icon: '🕸️', per: '+0.03 net power (fewer nets per animal)', levels: 50, costMult: 1.5 },
   reload:      { name: 'Net Reloader',    icon: '🔄', per: 'Fire nets a little faster', levels: 50, costMult: 0.9 },
   netRange:    { name: 'Net Cannon',      icon: '🎯', per: 'Nets fly faster and further', levels: 50, costMult: 0.9 },
+  armor:       { name: 'Armor Plating',   icon: '🛡️', per: '+4 max health, so you can take more crashes and charges', levels: 50, costMult: 1.1 },
   autoAim:     { name: 'Auto-Aim Turret', icon: '📡', per: 'Turret locks onto animals in a wider cone ahead. Fires by itself from level 21', levels: 50, costMult: 1.4 },
 };
 
@@ -128,9 +129,12 @@ const ECON = {
     { cactus: 10 }, { cactus: 20 }, { ice: 10 }, { ice: 20 }, { ice: 40 },
   ],
   // Animals on display become more valuable over time (real play time): +growth per
-  // minute, up to maxValueMult × their base value.
+  // minute, up to maxValueMult × their base value. Each expansion of the enclosure makes
+  // growth faster and raises the cap.
   valueGrowthPerMin: 0.2,
   maxValueMult: 3,
+  expandGrowthBonus: 0.5,  // +50% of the base growth rate per expansion
+  expandCapBonus: 0.75,    // +0.75× to the cap per expansion
 };
 
 // One-off perks bought at the Garage.

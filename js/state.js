@@ -43,6 +43,11 @@ const Game = {
         this.s = Object.assign(fresh, loaded);
         this.s.upgrades = Object.assign(fresh.upgrades, loaded.upgrades);
         this.s.resources = Object.assign(fresh.resources, loaded.resources);
+        // Older saves tracked time on display instead of a value multiplier.
+        for (const a of this.allAnimals()) {
+          if (a.mult === undefined && a.zooTime) a.mult = Math.min(ECON.maxValueMult, 1 + ECON.valueGrowthPerMin * a.zooTime / 60);
+          delete a.zooTime;
+        }
         return;
       }
     } catch (e) { /* storage unavailable or corrupt: start fresh */ }
@@ -70,12 +75,31 @@ const Game = {
 
   // ---- Animal value ----
   // Sale value: grows the longer the animal has been on display in an enclosure.
-  valueMult(a) { return Math.min(ECON.maxValueMult, 1 + ECON.valueGrowthPerMin * (a.zooTime || 0) / 60); },
+  // Each animal keeps its own multiplier, which grows at its enclosure's rate.
+  valueMult(a) { return a.mult || 1; },
+
+  // Expansions done on an enclosure (0 = original size).
+  encLevel(enc) { return Math.round((enc.capacity - ECON.startCapacity) / ECON.expandStep); },
+  // How fast animals in this enclosure gain value (multiplier per minute) and how high they can go.
+  encGrowth(enc) {
+    const lvl = this.encLevel(enc);
+    return {
+      perMin: ECON.valueGrowthPerMin * (1 + ECON.expandGrowthBonus * lvl),
+      cap: ECON.maxValueMult + ECON.expandCapBonus * lvl,
+    };
+  },
   animalValue(a) { return Math.round(SPECIES[a.sp].value * this.valueMult(a)); },
 
   // Called every frame: animals in enclosures age (only while the game is running).
   tick(dt) {
-    for (const a of this.allAnimals()) a.zooTime = (a.zooTime || 0) + dt;
+    for (const p of this.s.plots) {
+      if (!p.enclosure) continue;
+      const g = this.encGrowth(p.enclosure);
+      for (const a of p.enclosure.animals) {
+        const m = a.mult || 1;
+        if (m < g.cap) a.mult = Math.min(g.cap, m + g.perMin * dt / 60);
+      }
+    }
     this._saveT = (this._saveT || 0) + dt;
     if (this._saveT > 10) { this._saveT = 0; this.save(); }
   },
@@ -130,7 +154,7 @@ const Game = {
       turnRate: 2.7 + u.tires * 0.024,
       terrainGrip: u.tires * 0.016,              // reduces terrain slowdown (up to 80%)
       fuelMax: 30 + u.fuel * 1.5,
-      hpMax: 100,
+      hpMax: 100 + u.armor * 4,
       nets: 6 + u.netCount,
       cargoMax: 3 + u.cargo,
       reload: 0.75 * Math.pow(0.8, u.reload / 10),

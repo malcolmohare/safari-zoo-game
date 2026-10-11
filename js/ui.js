@@ -133,6 +133,7 @@ const UI = (() => {
       case 'netStrength': return `Now: ${st.netPower.toFixed(2)} power`;
       case 'reload': return `Now: ${st.reload.toFixed(2)}s reload`;
       case 'netRange': return `Now: ${Math.round(st.netRange)} range`;
+      case 'armor': return `Now: ${st.hpMax} max health`;
       case 'autoAim': return st.aimCone > 0 ? `Now: ±${Math.round(st.aimCone * 180 / Math.PI)}° cone${st.autoFire ? ' + auto-fire' : ''}` : 'Not installed';
     }
     return '';
@@ -205,15 +206,20 @@ const UI = (() => {
       const enc = Game.s.plots[plotIdx].enclosure;
       const b = BIOMES[enc.biome];
       let html = `<h2>${b.icon} ${b.name} enclosure <span class="muted">${enc.animals.length}/${enc.capacity}</span></h2>${money()}`;
-      if (enc.capacity < ECON.maxCapacity) html += btn(`Expand (+${ECON.expandStep} space & new decorations)`, 'expand', {}, Game.expandCost(enc), 'wide');
-      else html += `<p class="muted">Maximum size reached.</p>`;
+      const g = Game.encGrowth(enc);
+      html += `<div class="card"><div class="row"><span>💰 Animal value growth</span><b>+${Math.round(g.perMin * 100)}%/min, up to ×${g.cap.toFixed(2).replace(/\.?0+$/, '')}</b></div>`;
+      if (enc.capacity < ECON.maxCapacity) {
+        const ng = { perMin: g.perMin + ECON.valueGrowthPerMin * ECON.expandGrowthBonus, cap: g.cap + ECON.expandCapBonus };
+        html += `<p class="muted small">Expanding makes animals here gain value faster (+${Math.round(ng.perMin * 100)}%/min) and higher (up to ×${ng.cap.toFixed(2).replace(/\.?0+$/, '')}).</p></div>`;
+        html += btn(`Expand (+${ECON.expandStep} space, faster value, decorations)`, 'expand', {}, Game.expandCost(enc), 'wide');
+      } else html += `<p class="muted small">Maximum size reached.</p></div>`;
       if (!enc.animals.length) html += `<p class="muted">No animals yet. Catch ${b.name.toLowerCase()} animals on safari and carry them here from the truck.</p>`;
       html += `<ul class="animal-list">`;
       for (const a of enc.animals) {
         const d = SPECIES[a.sp];
         const onlyOne = Game.allAnimals().filter((x) => x.sp === a.sp).length === 1;
         const mult = Game.valueMult(a);
-        const growth = mult >= ECON.maxValueMult ? `💰 ×${mult.toFixed(1)} (max value)` : `💰 ×${mult.toFixed(2)} and rising`;
+        const growth = mult >= g.cap - 0.001 ? `💰 ×${mult.toFixed(2)} (max for this pen)` : `💰 ×${mult.toFixed(2)} and rising`;
         html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'} · ${growth}</small></span>${btn(`Sell ${fmtMoney(Game.animalValue(a))}`, 'sell', { id: a.id }, null, 'small')}</li>`;
       }
       return html + `</ul>`;
