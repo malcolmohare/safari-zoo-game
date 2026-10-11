@@ -404,7 +404,7 @@ const Safari = (() => {
       msg: null, shake: 0, cargoWarnT: 0, respawnT: 0,
       leftBase: false, ended: false, outOfFuelT: -1, paused: false, fenceWarnT: 0,
       shownPickupTip: false,
-      netsLeft: stats.nets, groundNets: [], netWarnT: 0,
+      netsLeft: stats.nets, groundNets: [], netWarnT: 0, netRefillT: 0, refilling: false,
       gathered: Object.fromEntries(Object.keys(RESOURCES).map((k) => [k, 0])),
       region: 0, regionsVisited: new Set(['savanna']),
     };
@@ -439,7 +439,7 @@ const Safari = (() => {
 
     // Fuel
     if (S.outOfFuelT < 0) {
-      S.fuel -= dt;
+      if (!S.atBase) S.fuel -= dt;   // no fuel used while parked at base camp
       if (S.fuel <= 0) {
         S.fuel = 0;
         S.outOfFuelT = 0;
@@ -675,6 +675,19 @@ const Safari = (() => {
     const atBase = dist(j.x, j.y, BASE.x, BASE.y) < BASE.r;
     if (!atBase) S.leftBase = true;
     S.atBase = atBase && canDrive;
+    // Base camp refills fuel and nets (quickly, but not instantly).
+    S.refilling = false;
+    if (S.atBase) {
+      if (S.fuel < st.fuelMax) {
+        S.fuel = Math.min(st.fuelMax, S.fuel + st.fuelMax * 0.5 * dt);
+        S.refilling = true;
+      }
+      if (S.netsLeft < st.nets) {
+        S.netRefillT -= dt;
+        if (S.netRefillT <= 0) { S.netsLeft++; S.netRefillT = 0.12; Sfx.tone(520, 0.04, 'triangle', 0.03); }
+        S.refilling = true;
+      }
+    }
     if (S.atBase && (S.leftBase || S.t > 3) && input.pressed('KeyE')) finish(false);
   }
 
@@ -1033,6 +1046,7 @@ const Safari = (() => {
       const how = TouchControls.enabled ? 'Tap 🏁' : 'Press E';
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
+      banner(S.refilling ? '⛽ Refilling fuel and nets...' : '✅ Fuel and nets are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Space: fire  •  F: auto-fire on/off' : 'Space: fire net from the front';
       if (TouchControls.enabled) banner(`Drag on the left to drive  •  Hold 🕸️ to fire${S.stats.autoFire ? '  •  AUTO: auto-fire on/off' : ''}`, H - 30, '#fff', 13);
