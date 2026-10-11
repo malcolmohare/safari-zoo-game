@@ -12,7 +12,7 @@ const BIOMES = {
 const REGION_ORDER = ['savanna', 'wetlands', 'jungle', 'desert', 'tundra'];
 
 // Resources gathered on safari, one per region. Drive over a glowing node to collect it.
-// Upgrade levels cost their tier's resource; enclosures cost their region's resource.
+// Enclosures and expansions cost their region's resource; land and perks cost resources too.
 const RESOURCES = {
   grass:    { name: 'Grass',     emoji: '🌾', biome: 'savanna' },
   wood:     { name: 'Wood',      emoji: '🪵', biome: 'wetlands' },
@@ -167,17 +167,10 @@ function upgradeCost(key, level) {
   return niceRound(avg * (0.6 + 0.8 * i / Math.max(1, perTier - 1)));
 }
 
-// Resources needed for level index `level` of an upgrade: its tier's resource, from 1 unit
-// for the tier's first levels up to 4 for its last.
-function upgradeResCost(key, level) {
-  const u = UPGRADES[key], tier = upgradeTier(key, level);
-  const perTier = u.levels / TIERS.length, i = level - (tier - 1) * perTier;
-  return { [BIOMES[REGION_ORDER[tier - 1]].resource]: 1 + Math.floor(i * 4 / perTier) };
-}
-
 // Full price of an upgrade level: { money, res: { resourceKey: amount } }.
+// Jeep upgrades cost money only; resources go into enclosures, land and perks.
 function upgradeFullCost(key, level) {
-  return { money: upgradeCost(key, level), res: upgradeResCost(key, level) };
+  return { money: upgradeCost(key, level), res: {} };
 }
 
 // Add two costs together (used for "buy 5 levels").

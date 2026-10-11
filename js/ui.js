@@ -278,7 +278,7 @@ const UI = (() => {
           : `<li>Walk your zookeeper (WASD / arrows) to the <b>🚙 jeep</b> and press <b>E</b> to go on safari.</li>
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
         <li>Drive into netted animals to load them, and drive over glowing resources (🌾 grass in the savanna) to gather them. Then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
-        <li>Upgrades and enclosures cost money <b>and</b> resources: grass for the first tier, then wood, mushrooms, cactus and ice from each new region.</li>
+        <li>Enclosures and land cost money <b>and</b> resources: grass in the savanna, then wood, mushrooms, cactus and ice from each new region. Jeep upgrades only cost money.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. <b>Sell</b> animals there for money; that's how you earn.</li>
         <li>Carry one of each new species to an enclosure matching its home region. The more different species on display, the higher your <b>tier</b>. Each tier unlocks more levels of every upgrade at the <b>🔧 Garage</b>, and a permit to explore the next region.</li>
       </ol>
