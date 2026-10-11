@@ -42,6 +42,19 @@ const UI = (() => {
     menu = null;
     refresh();
   }
+  // Pop-up notification (stacked at the top of the screen, fades out on its own).
+  function notify(icon, title, detail = '') {
+    const box = $('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `<span class="t-icon">${icon}</span><div><b>${title}</b>${detail ? `<small>${detail}</small>` : ''}</div>`;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    Sfx.upgrade();
+    setTimeout(() => el.classList.add('out'), 2600);
+    setTimeout(() => el.remove(), 3100);
+  }
+
   function isModalOpen() { return !$('modal').classList.contains('hidden'); }
 
   function refresh() {
@@ -116,9 +129,16 @@ const UI = (() => {
       }
       return html;
     }, (action, d) => {
-      if (action === 'upgrade') Game.buyUpgrade(d.key);
-      if (action === 'upgrade5') for (let i = 0; i < 5; i++) Game.buyUpgrade(d.key);
-      if (action === 'perk') Game.buyPerk(d.key);
+      if (action === 'upgrade' || action === 'upgrade5') {
+        const u = UPGRADES[d.key], before = statLine(d.key, Game.jeepStats()), lvl0 = Game.s.upgrades[d.key];
+        for (let i = 0; i < (action === 'upgrade5' ? 5 : 1); i++) if (!Game.buyUpgrade(d.key)) break;
+        const lvl = Game.s.upgrades[d.key];
+        if (lvl > lvl0) {
+          const after = statLine(d.key, Game.jeepStats());
+          notify(u.icon, `${u.name} Lv ${lvl}${lvl - lvl0 > 1 ? ` (+${lvl - lvl0})` : ''}`, `${after.replace('Now: ', '')} <span class="was">(was ${before.replace('Now: ', '')})</span>`);
+        }
+      }
+      if (action === 'perk' && Game.buyPerk(d.key)) notify(PERKS[d.key].icon, `${PERKS[d.key].name} unlocked!`, PERKS[d.key].desc);
     });
   }
 
@@ -147,7 +167,7 @@ const UI = (() => {
 
   function openLand(plotIdx) {
     open(() => `<h2>🪧 Plot for sale</h2>${money()}<p>Buy this plot to build another enclosure on it. Plots cost money plus resources gathered on safari, and each one costs more than the last.</p>${btn('Buy this plot', 'buy', {}, Game.landCost(), 'wide')}`, (action) => {
-      if (action === 'buy' && Game.buyPlot(plotIdx)) close();
+      if (action === 'buy' && Game.buyPlot(plotIdx)) { notify('🪧', 'New plot bought!', 'Walk up to it to build an enclosure.'); close(); }
     });
   }
 
@@ -197,7 +217,10 @@ const UI = (() => {
       }
       return html;
     }, (action, d) => {
-      if (action === 'build' && Game.buildEnclosure(plotIdx, d.biome)) close();
+      if (action === 'build' && Game.buildEnclosure(plotIdx, d.biome)) {
+        notify(BIOMES[d.biome].icon, `${BIOMES[d.biome].name} enclosure built!`, `Room for ${ECON.startCapacity} animals.`);
+        close();
+      }
     });
   }
 
@@ -224,7 +247,11 @@ const UI = (() => {
       }
       return html + `</ul>`;
     }, (action, d) => {
-      if (action === 'expand') Game.expandEnclosure(plotIdx);
+      if (action === 'expand' && Game.expandEnclosure(plotIdx)) {
+        const enc = Game.s.plots[plotIdx].enclosure, g = Game.encGrowth(enc);
+        notify(BIOMES[enc.biome].icon, `${BIOMES[enc.biome].name} enclosure expanded!`,
+          `${enc.capacity} spaces · animal value +${Math.round(g.perMin * 100)}%/min, up to ×${g.cap.toFixed(2).replace(/\.?0+$/, '')} · new decorations`);
+      }
       if (action === 'sell') { Game.sellAnimal(plotIdx, Number(d.id)); }
     });
   }
@@ -316,6 +343,6 @@ const UI = (() => {
   return {
     init, refresh, isModalOpen, close,
     openGarage, openOffice, openLand, openBuild, openEnclosure, openTruck, openSafariConfirm,
-    showIntro, showReport,
+    showIntro, showReport, notify,
   };
 })();

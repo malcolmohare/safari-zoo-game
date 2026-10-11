@@ -156,3 +156,15 @@ body.touch canvas { touch-action: none; }
 .btn .cost { white-space: nowrap; }
 .up-btns { flex-shrink: 0; }
 .up-btns .btn { justify-content: space-between; }
+
+/* Purchase notifications */
+#toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; flex-direction: column;
+  gap: 8px; align-items: center; pointer-events: none; width: min(92vw, 440px); }
+.toast { display: flex; align-items: center; gap: 12px; width: 100%; background: #f2c94c; color: #2a2000; border-radius: 12px;
+  padding: 10px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.4); animation: toast-in 0.3s ease-out; transition: opacity 0.5s, transform 0.5s; }
+.toast.out { opacity: 0; transform: translateY(-10px); }
+.toast .t-icon { font-size: 28px; }
+.toast b { display: block; font-size: 15px; }
+.toast small { display: block; font-size: 12px; margin-top: 2px; }
+.toast .was { opacity: 0.65; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-16px) scale(0.95); } to { opacity: 1; transform: none; } }
