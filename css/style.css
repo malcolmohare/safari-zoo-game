@@ -113,7 +113,7 @@ body.touch canvas { touch-action: none; }
 #tbtn-use { right: calc(24px + env(safe-area-inset-right)); bottom: calc(60px + env(safe-area-inset-bottom)); width: 84px; height: 84px; }
 #tbtn-fire { right: calc(24px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); }
 #tbtn-home { right: calc(130px + env(safe-area-inset-right)); bottom: calc(50px + env(safe-area-inset-bottom)); }
-#tbtn-pause { right: calc(46px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom)); }
+#tbtn-pause { left: 50%; margin-left: -24px; bottom: calc(52px + env(safe-area-inset-bottom)); }
 #touch-pause { position: fixed; z-index: 6; left: 50%; top: 62%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 12px; width: 260px; }
 #touch-pause .tow { background: #d9d2b8; box-shadow: 0 3px 0 #a59e85; }
 
@@ -133,3 +133,7 @@ body.touch canvas { touch-action: none; }
   .upgrade .btn, .upgrade .maxed { width: 100%; justify-content: space-between; }
   .animal-list li { flex-wrap: wrap; }
 }
+
+#tbtn-auto { right: calc(130px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom));
+  width: 64px; height: 40px; border-radius: 12px; font-size: 12px; font-weight: 800; }
+#tbtn-auto.on { background: rgba(80,170,70,0.75); }

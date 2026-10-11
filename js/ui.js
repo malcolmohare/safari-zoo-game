@@ -108,13 +108,14 @@ const UI = (() => {
       const ap = Game.appeal();
       const per = Game.spendPerVisitor();
       let html = `<h2>🏢 Office</h2>${money()}
-        <div class="card"><h3>📊 Tomorrow's forecast</h3>
+        <div class="card"><h3>📊 Forecast <span class="muted small">per day (${ECON.daySeconds}s on safari)</span></h3>
           <div class="row"><span>Animal appeal</span><b>${ap.base}</b></div>
           <div class="row"><span>Variety bonus (${ap.unique} species)</span><b>×${ap.variety.toFixed(2)}</b></div>
           <div class="row"><span>Visitors</span><b>~${Game.expectedVisitors()}</b></div>
           <div class="row"><span>Spend per visitor</span><b>${fmtMoney(per.ticket + per.snack + per.gift)}</b></div>
           <div class="row"><span>Animal food</span><b class="neg">-${fmtMoney(Game.dailyUpkeep())}</b></div>
-          <p class="muted small">Only animals in enclosures count — not ones waiting in the truck.</p>
+          <div class="row"><span>Earnings per second on safari</span><b>${fmtMoney(Game.incomePerSecond())}</b></div>
+          <p class="muted small">The zoo earns money while you're out on safari, for as long as you're out. Only animals in enclosures count — not ones waiting in the truck.</p>
         </div>`;
       html += landCard();
       html += `<h3>🍿 Amenities</h3>`;
@@ -204,7 +205,7 @@ const UI = (() => {
       const s = Game.s, st = Game.jeepStats();
       const waiting = s.holding.length + (s.carrying ? 1 : 0);
       return `<h2>🚙 Head out on safari?</h2>
-        <p>The zoo stays open while you're away. You'll earn money from the animals that are <b>in enclosures</b> when you leave.</p>
+        <p>The zoo earns money <b>for as long as you're out</b> (about ${fmtMoney(Game.incomePerSecond() * ECON.daySeconds)} per ${ECON.daySeconds}s right now), from the animals that are <b>in enclosures</b> when you leave. Longer trips earn more.</p>
         ${waiting ? `<p class="neg">⚠️ ${waiting} animal${waiting > 1 ? 's are' : ' is'} still in the truck and won't earn anything today.</p>` : ''}
         <div class="card stats-grid">
           <div><small>Fuel</small><b>${st.fuelMax}s</b></div><div><small>Nets</small><b>${st.nets}</b></div><div><small>Cargo</small><b>${st.cargoMax}</b></div>
@@ -227,7 +228,7 @@ const UI = (() => {
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
         <li>Drive into netted animals to load them, then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. Carry each animal to an enclosure that matches its home region.</li>
-        <li>Visitors pay to see animals in your enclosures. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>, and walk up to 🪧 for-sale signs to buy more plots.</li>
+        <li>While you're out on safari, visitors pay to see the animals in your enclosures — the longer you're out, the more you earn. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>, and walk up to 🪧 for-sale signs to buy more plots.</li>
       </ol>
       <p class="muted">The wild has five regions, each further north than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals but need a faster jeep and more fuel to reach.</p>
       ${btn('Let\'s go!', 'ok', {}, null, 'big')}`, () => {
@@ -253,7 +254,7 @@ const UI = (() => {
       ${r.caught.length ? `<p>${chips(r.caught)}</p><p class="muted">They're waiting in the 🚚 truck. Carry them to their enclosures!</p>` : '<p class="muted">You came back empty-handed this time.</p>'}
       ${r.newSpecies.length ? `<p>📖 New in your field guide: ${chips(r.newSpecies)}</p>` : ''}
       <h3>🎟️ While you were out</h3>
-      <p><b>${r.visitors}</b> visitors came to the zoo.</p>
+      <p>You were out for <b>${r.secondsOut}s</b>, and <b>${r.visitors}</b> visitors came to the zoo.</p>
       ${line('Tickets', L.tickets)}${line('Snack bar', L.snacks)}${line('Gift shop', L.gifts)}
       ${line('Animal food', L.upkeep)}${line('Tow truck', L.tow)}
       <div class="row total"><span>Profit</span><b class="${r.net < 0 ? 'neg' : 'pos'}">${fmtMoney(r.net)}</b></div>

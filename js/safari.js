@@ -374,6 +374,7 @@ const Safari = (() => {
     const stats = Game.jeepStats();
     S = {
       stats,
+      incomeRate: Game.incomePerSecond(),
       jeep: { x: BASE.x, y: BASE.y - 20, angle: -Math.PI / 2, speed: 0, vx: 0, vy: 0, turret: -Math.PI / 2 },
       cam: { x: BASE.x, y: BASE.y },
       animals: [], nets: [], particles: [], floats: [],
@@ -398,7 +399,7 @@ const Safari = (() => {
   function finish(towed) {
     if (S.ended) return;
     S.ended = true;
-    onEnd(S.cargo.slice(), towed, [...S.regionsVisited]);
+    onEnd(S.cargo.slice(), towed, [...S.regionsVisited], S.t);
   }
 
   // ---------------- Update ----------------
@@ -525,7 +526,13 @@ const Safari = (() => {
     S.reloadT -= dt;
     S.netWarnT -= dt;
     const manualFire = input.mouse.down || input.down('Space');
-    const autoFire = st.autoFire && S.target && S.netsLeft > 0;
+    if (st.autoFire && input.pressed('KeyF')) {
+      Game.s.autoFireOn = !Game.s.autoFireOn;
+      Game.save();
+      message(Game.s.autoFireOn ? 'Auto-fire ON' : 'Auto-fire OFF: the turret still aims, you fire', 2);
+      Sfx.hit();
+    }
+    const autoFire = st.autoFire && Game.s.autoFireOn && S.target && S.netsLeft > 0;
     const wantFire = canDrive && (manualFire || autoFire) && S.reloadT <= 0;
     if (wantFire && S.netsLeft <= 0) {
       if (S.netWarnT <= 0) {
@@ -858,7 +865,7 @@ const Safari = (() => {
 
     // Top-left: fuel + cargo
     const cargoW = Math.max(240, st.cargoMax * 30 + 34);
-    panel(12, 12, cargoW, 120);
+    panel(12, 12, cargoW, st.autoFire ? 164 : 142);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
     const reg = BIOMES[REGION_ORDER[S.region]];
@@ -890,7 +897,16 @@ const Safari = (() => {
       ctx.fillRect(150, 112, 60 * clamp(S.reloadT / st.reload, 0, 1), 6);
     }
 
-    // Reload indicator near cursor-ish: small bar under fuel
+    if (st.autoFire) {
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.fillStyle = Game.s.autoFireOn ? '#8be07a' : 'rgba(255,255,255,0.55)';
+      ctx.fillText(`📡 Auto-fire: ${Game.s.autoFireOn ? 'ON' : 'OFF'}${TouchControls.enabled ? '' : '  (F to toggle)'}`, 24, 138);
+    }
+    // zoo earnings ticking up while you're away
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.fillStyle = '#f2c94c';
+    ctx.fillText(`🎟️ Zoo earnings: ${S.incomeRate >= 0 ? '+' : ''}${fmtMoney(S.incomeRate * S.t)}`, 24, st.autoFire ? 160 : 138);
+
     // Minimap (top-right)
     const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
     const mx = W - mmW - 12, my = 12;
@@ -923,8 +939,8 @@ const Safari = (() => {
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
     } else if (S.t < 12) {
-      const fireHint = S.stats.autoFire ? 'Auto-fire on (Space to fire manually)' : 'Space: fire net from the front';
-      if (TouchControls.enabled) banner(`Drag on the left to drive  •  ${S.stats.autoFire ? 'Auto-fire on' : 'Hold 🕸️ to fire'}`, H - 30, '#fff', 13);
+      const fireHint = S.stats.autoFire ? 'Space: fire  •  F: auto-fire on/off' : 'Space: fire net from the front';
+      if (TouchControls.enabled) banner(`Drag on the left to drive  •  Hold 🕸️ to fire${S.stats.autoFire ? '  •  AUTO: auto-fire on/off' : ''}`, H - 30, '#fff', 13);
       else banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
     }
 
@@ -954,7 +970,11 @@ const Safari = (() => {
   }
 
   function touchState() {
-    return { paused: !!(S && S.paused), canGoHome: !!(S && S.atBase && (S.leftBase || S.t > 3)) };
+    return {
+      paused: !!(S && S.paused),
+      canGoHome: !!(S && S.atBase && (S.leftBase || S.t > 3)),
+      hasAutoFire: !!(S && S.stats.autoFire),
+    };
   }
 
   return { init, start, update, render, resize, touchState, debug: () => S };

@@ -64,11 +64,11 @@ const App = {
     this.setScene('safari');
     Input.mouse.x = window.innerWidth / 2;
     Input.mouse.y = window.innerHeight / 3;
-    Safari.start((cargo, towed, regions) => this.endSafari(cargo, towed, regions));
+    Safari.start((cargo, towed, regions, seconds) => this.endSafari(cargo, towed, regions, seconds));
   },
 
-  endSafari(cargo, towed, regions) {
-    const report = Game.endDay(cargo, towed, regions);
+  endSafari(cargo, towed, regions, seconds) {
+    const report = Game.endDay(cargo, towed, regions, seconds);
     Input.keys.clear();
     this.setScene('zoo');
     Zoo.arriveHome();

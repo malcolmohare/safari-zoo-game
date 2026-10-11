@@ -89,6 +89,10 @@ const ECON = {
   varietyBonus: 0.08,      // per extra unique species
   sellMultiplier: 4,       // selling an animal = appeal * this
   towFee: 15,
+  // The zoo earns money only while you're out on safari: one full "day" of visitors per
+  // this many seconds away. Short trips earn proportionally less, so quick in-and-out
+  // trips can't be used to farm money.
+  daySeconds: 30,
   startCapacity: 3,
   expandStep: 2,
   maxCapacity: 11,

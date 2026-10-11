@@ -25,6 +25,7 @@ function newGameState() {
     carrying: null,   // animal the zookeeper is carrying: { id, sp } or null
     lastReport: null,
     seenIntro: false,
+    autoFireOn: true,   // player toggle for the Auto-Aim Turret's auto-fire (F / AUTO button)
     totalEarned: 0,
   };
 }
@@ -229,15 +230,23 @@ const Game = {
 
   // Called when a safari ends. The zoo was open while you were out, so the day's
   // income is based on the animals already in enclosures. The new catch goes into the truck.
-  endDay(cargo, towed, regionsVisited) {
+  // Net zoo income per second of safari time (used for the live counter on the safari HUD).
+  incomePerSecond() {
+    const per = this.spendPerVisitor();
+    const perVisitor = per.ticket + per.snack + per.gift;
+    return (this.expectedVisitors() * perVisitor - this.dailyUpkeep()) / ECON.daySeconds;
+  },
+
+  endDay(cargo, towed, regionsVisited, secondsOut) {
     const s = this.s;
-    const visitors = Math.max(0, Math.round(this.expectedVisitors() * rand(0.9, 1.1)));
+    const dayFrac = secondsOut / ECON.daySeconds;
+    const visitors = Math.max(0, Math.round(this.expectedVisitors() * dayFrac * rand(0.95, 1.05)));
     const per = this.spendPerVisitor();
     const lines = {
       tickets: Math.round(visitors * per.ticket),
       snacks: Math.round(visitors * per.snack),
       gifts: Math.round(visitors * per.gift),
-      upkeep: -this.dailyUpkeep(),
+      upkeep: -Math.round(this.dailyUpkeep() * dayFrac),
       tow: towed ? -ECON.towFee : 0,
     };
     const net = Object.values(lines).reduce((a, b) => a + b, 0);
@@ -253,7 +262,7 @@ const Game = {
     const newRegions = regionsVisited.filter((r) => !s.regionsVisited[r]);
     for (const r of regionsVisited) s.regionsVisited[r] = true;
 
-    const report = { day: s.day, caught: cargo, newSpecies, newRegions, visitors, lines, net, towed, appeal: this.appeal().total };
+    const report = { day: s.day, caught: cargo, newSpecies, newRegions, visitors, lines, net, towed, appeal: this.appeal().total, secondsOut: Math.round(secondsOut) };
     s.lastReport = report;
     s.day++;
     this.save();

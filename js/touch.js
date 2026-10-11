@@ -16,6 +16,7 @@ const TouchControls = (() => {
       fire: document.getElementById('tbtn-fire'),
       home: document.getElementById('tbtn-home'),
       pause: document.getElementById('tbtn-pause'),
+      auto: document.getElementById('tbtn-auto'),
       use: document.getElementById('tbtn-use'),
       pausePanel: document.getElementById('touch-pause'),
     };
@@ -88,6 +89,11 @@ const TouchControls = (() => {
     show(ui.fire, sf && !sf.paused);
     show(ui.home, sf && sf.canGoHome && !sf.paused);
     show(ui.pause, sf && !sf.paused);
+    show(ui.auto, sf && !sf.paused && sf.hasAutoFire);
+    if (sf && sf.hasAutoFire) {
+      ui.auto.classList.toggle('on', Game.s.autoFireOn);
+      ui.auto.textContent = Game.s.autoFireOn ? 'AUTO ON' : 'AUTO OFF';
+    }
     show(ui.pausePanel, sf && sf.paused);
     show(ui.use, scene === 'zoo' && !modal && Zoo.hasTarget());
     if (modal && stick.id !== null) releaseStick();
