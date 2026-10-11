@@ -34,7 +34,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | Pick up a netted animal | Drive into it before its timer ring runs out |
 | Pick up a missed net | Drive over it |
 | Gather a resource | Drive over a glowing 🌾 🪵 🍄 🌵 🧊 |
-| Refill fuel and nets | Drive back into base camp (needs the ⛺ Camp Supply Depot perk from the Garage) |
+| Refill fuel and nets, repair | Drive back into base camp (needs the ⛺ Camp Supply Depot perk from the Garage) |
 | Go home | Drive back to base camp and press E |
 | Auto-fire on/off | F (once you have Auto-Aim Turret level 3) |
 | Pause | Esc (press Q while paused to call a tow truck) |
@@ -56,7 +56,8 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 - **Regions:** the wild is a long strip with five regions, each further from base camp than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals, but you need more fuel and a faster jeep to get there and back. Within a region, the rarest animals live on its far side.
 - **Auto-Aim Turret:** a Garage upgrade that makes the turret lock onto animals in a cone in front of the jeep. Each level widens the cone, and from level 3 it can fire by itself. Toggle auto-fire with F (or the AUTO button on touch screens) when you'd rather save nets; the turret keeps aiming either way.
 - **Nets:** you only carry a limited number of nets (upgrade the Net Rack for more). Missed nets land on the ground and can be picked back up. Big animals need several nets, and a partly-netted animal shakes the net off if you leave it alone. Lions, hippos, crocodiles, gorillas, tigers, scorpions, cobras, rhinos and polar bears **charge your jeep**, and every hit costs you fuel.
-- **Fuel:** this is your time limit. Once you buy the ⛺ Camp Supply Depot perk at the Garage, driving back into base camp refills your fuel and nets, so a trip can last as long as you keep returning to camp. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
+- **Fuel:** this is your time limit. Once you buy the ⛺ Camp Supply Depot perk at the Garage, driving back into base camp refills your fuel and nets, so a trip can last as long as you keep returning to camp. If you run out, a tow truck brings you home for a fee.
+- **Health:** the jeep has 100 ❤️. Crashing into a tree, rock or cactus smashes it to pieces but costs health (harder crashes cost more; gentle bumps are free). At 0 health the jeep breaks down and is towed home. The Camp Supply Depot perk also repairs the jeep at base camp.
 - **Money:** you only earn money by **selling animals** (from the truck or from an enclosure). Animals on display in an enclosure grow in value the longer they stay: +20% per minute of play, up to 3× their base value. Values climb steeply with distance: savanna animals sell for $10–45, wetlands $40–145, jungle $150–470, desert $500–1,300 and tundra $1,500–5,770.
 - **Collection & tiers:** the number of different species on display in your enclosures sets your tier (5, 10, 16 and 22 species for tiers 2–5). Each tier gives a permit to drive into the next region (a ranger fence blocks it until then) and unlocks more levels of every upgrade. Tiers stay unlocked even if you sell animals later. Keep one of each species for the collection and sell the duplicates.
 - **Resources:** each region has its own resource to gather by driving over the glowing nodes: 🌾 grass (Savanna), 🪵 wood (Wetlands), 🍄 mushrooms (Jungle), 🌵 cactus (Desert) and 🧊 ice (Tundra). Upgrade levels cost money plus their tier's resource (1–4 units per level), and building or expanding an enclosure costs money plus its region's resource.

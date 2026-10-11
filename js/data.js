@@ -137,7 +137,7 @@ const ECON = {
 const PERKS = {
   campRefill: {
     name: 'Camp Supply Depot', icon: '⛺',
-    desc: 'Refill fuel and nets whenever you drive back into base camp',
+    desc: 'Refill fuel and nets and repair the jeep whenever you drive back into base camp',
     cost: { money: 120, res: { grass: 25 } },
   },
 };

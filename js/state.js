@@ -130,6 +130,7 @@ const Game = {
       turnRate: 2.7 + u.tires * 0.024,
       terrainGrip: u.tires * 0.016,              // reduces terrain slowdown (up to 80%)
       fuelMax: 30 + u.fuel * 1.5,
+      hpMax: 100,
       nets: 6 + u.netCount,
       cargoMax: 3 + u.cargo,
       reload: 0.75 * Math.pow(0.8, u.reload / 10),

@@ -160,6 +160,16 @@ const Safari = (() => {
     return out;
   }
 
+  // Destroy an obstacle the jeep crashed into: it's removed from the world in a burst of debris.
+  function smashObstacle(o) {
+    o.dead = true;
+    const key = Math.floor(o.x / CELL) + ',' + Math.floor(o.y / CELL);
+    const arr = S.world.grid.get(key);
+    if (arr) arr.splice(arr.indexOf(o), 1);
+    const colors = { '🪨': ['#8d8d8d', '#b5b5b5'], '🌵': ['#4f9a3c', '#7bc35f'], '🌲': ['#2f6b3a', '#6b4a2a'] }[o.emoji] || ['#4f8f3a', '#7a5230'];
+    for (const c of colors) burst(o.x, o.y - o.size * 0.3, c, 12);
+  }
+
   function nearbyObstacles(x, y) {
     const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
     const out = [];
@@ -403,6 +413,7 @@ const Safari = (() => {
       fuel: stats.fuelMax, reloadT: 0, t: 0, crashT: 0,
       msg: null, shake: 0, cargoWarnT: 0, respawnT: 0,
       leftBase: false, ended: false, outOfFuelT: -1, paused: false, fenceWarnT: 0,
+      hp: stats.hpMax, brokeDown: false,
       shownPickupTip: false,
       netsLeft: stats.nets, groundNets: [], netWarnT: 0, netRefillT: 0, refilling: false,
       gathered: Object.fromEntries(Object.keys(RESOURCES).map((k) => [k, 0])),
@@ -501,14 +512,21 @@ const Safari = (() => {
         if (impact > 0) {
           j.vx += nx * impact * 1.4; j.vy += ny * impact * 1.4;
           j.speed *= 0.25;
-          if (impact > 90 && S.crashT <= 0) {
-            // Crashing costs fuel: roughly 1s per 60 units of impact speed.
-            const cost = Math.max(1, Math.round(impact / 60));
-            S.fuel = Math.max(0, S.fuel - cost);
-            S.crashT = 0.6;
+          if (impact > 60 && S.crashT <= 0) {
+            // A real crash smashes the obstacle and damages the jeep (~1 health per 10 impact speed).
+            const dmg = Math.max(2, Math.round(impact / 10));
+            S.hp = Math.max(0, S.hp - dmg);
+            S.crashT = 0.4;
             S.shake = Math.min(12, impact / 25);
-            floatText(j.x, j.y - 30, `Crash! -${cost}s fuel`, '#ff7070', 16);
+            smashObstacle(o);
+            floatText(j.x, j.y - 30, `Crash! -${dmg} ❤️`, '#ff7070', 16);
             Sfx.bump();
+            if (S.hp <= 0 && S.outOfFuelT < 0) {
+              S.outOfFuelT = 0;
+              S.brokeDown = true;
+              message(`💥 Your jeep broke down! A tow truck hauls you home (-$${ECON.towFee})`, 3);
+              Sfx.error();
+            }
           }
         }
       }
@@ -680,6 +698,10 @@ const Safari = (() => {
     if (S.atBase && Game.s.perks.campRefill) {
       if (S.fuel < st.fuelMax) {
         S.fuel = Math.min(st.fuelMax, S.fuel + st.fuelMax * 0.5 * dt);
+        S.refilling = true;
+      }
+      if (S.hp < st.hpMax) {
+        S.hp = Math.min(st.hpMax, S.hp + st.hpMax * 0.5 * dt);
         S.refilling = true;
       }
       if (S.netsLeft < st.nets) {
@@ -922,7 +944,7 @@ const Safari = (() => {
 
     // Trees & rocks on top (so you can hide under the canopy)
     for (const o of S.world.obstacles) {
-      if (!vis(o.x, o.y)) continue;
+      if (o.dead || !vis(o.x, o.y)) continue;
       const nearJeep = dist(o.x, o.y - o.size * 0.3, S.jeep.x, S.jeep.y) < o.size * 0.6;
       drawEmoji(ctx, o.emoji, o.x, o.y - o.size * 0.3, o.size, false, nearJeep ? 0.5 : 1);
     }
@@ -970,7 +992,7 @@ const Safari = (() => {
 
     // Top-left: fuel + cargo
     const cargoW = Math.max(240, st.cargoMax * 30 + 34);
-    panel(12, 12, cargoW, st.autoFire ? 186 : 164);
+    panel(12, 12, cargoW, st.autoFire ? 208 : 186);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
     const reg = BIOMES[REGION_ORDER[S.region]];
@@ -985,9 +1007,18 @@ const Safari = (() => {
     ctx.fillStyle = '#fff';
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillText(`${Math.ceil(S.fuel)}s`, cargoW - 46, 56);
+    // health bar
+    const hFrac = clamp(S.hp / st.hpMax, 0, 1);
+    ctx.fillText('❤️', 22, 78);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(46, 70, cargoW - 100, 16);
+    ctx.fillStyle = hFrac > 0.3 ? '#e0605a' : (Math.sin(S.t * 10) > 0 ? '#ff3030' : '#8a2020');
+    ctx.fillRect(46, 70, (cargoW - 100) * hFrac, 16);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${Math.ceil(S.hp)}`, cargoW - 46, 78);
     // cargo slots
     for (let i = 0; i < st.cargoMax; i++) {
-      const x = 36 + i * 30, y = 84;
+      const x = 36 + i * 30, y = 106;
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x - 12, y - 12, 25, 25);
@@ -996,24 +1027,24 @@ const Safari = (() => {
     // nets left
     ctx.font = 'bold 14px system-ui, sans-serif';
     ctx.fillStyle = S.netsLeft > 0 ? '#fff' : '#ff7070';
-    ctx.fillText(`🕸️ Nets: ${S.netsLeft} / ${st.nets}`, 24, 116);
+    ctx.fillText(`🕸️ Nets: ${S.netsLeft} / ${st.nets}`, 24, 138);
     if (S.reloadT > 0 && S.netsLeft > 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillRect(150, 112, 60 * clamp(S.reloadT / st.reload, 0, 1), 6);
+      ctx.fillRect(150, 134, 60 * clamp(S.reloadT / st.reload, 0, 1), 6);
     }
 
     if (st.autoFire) {
       ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.fillStyle = Game.s.autoFireOn ? '#8be07a' : 'rgba(255,255,255,0.55)';
-      ctx.fillText(`📡 Auto-fire: ${Game.s.autoFireOn ? 'ON' : 'OFF'}${TouchControls.enabled ? '' : '  (F to toggle)'}`, 24, 138);
+      ctx.fillText(`📡 Auto-fire: ${Game.s.autoFireOn ? 'ON' : 'OFF'}${TouchControls.enabled ? '' : '  (F to toggle)'}`, 24, 160);
     }
     // zoo earnings ticking up while you're away
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.fillStyle = '#f2c94c';
-    ctx.fillText(`💰 Cargo worth: ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, 24, st.autoFire ? 160 : 138);
+    ctx.fillText(`💰 Cargo worth: ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, 24, st.autoFire ? 182 : 160);
     const got = Object.entries(S.gathered).filter(([, v]) => v > 0).map(([k, v]) => `${RESOURCES[k].emoji} ${v}`).join('  ');
     ctx.fillStyle = '#fff';
-    ctx.fillText(`Gathered: ${got || 'nothing yet'}`, 24, st.autoFire ? 182 : 160);
+    ctx.fillText(`Gathered: ${got || 'nothing yet'}`, 24, st.autoFire ? 204 : 182);
 
     // Minimap (top-right)
     const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
@@ -1047,7 +1078,7 @@ const Safari = (() => {
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
       if (!Game.s.perks.campRefill) banner('Tip: buy the ⛺ Camp Supply Depot at the Garage to refill fuel and nets here', H - 100, '#fff', 13);
-      else banner(S.refilling ? '⛽ Refilling fuel and nets...' : '✅ Fuel and nets are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
+      else banner(S.refilling ? '⛽ Refilling fuel and nets, repairing the jeep...' : '✅ Fuel, nets and health are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Space: fire  •  F: auto-fire on/off' : 'Space: fire net from the front';
       if (TouchControls.enabled) banner(`Drag on the left to drive  •  Hold 🕸️ to fire${S.stats.autoFire ? '  •  AUTO: auto-fire on/off' : ''}`, H - 30, '#fff', 13);
