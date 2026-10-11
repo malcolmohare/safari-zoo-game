@@ -1,7 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v5';
+const SAVE_KEY = 'safari-zoo-save-v6';
 
 function newGameState() {
   const plots = [];
@@ -94,21 +94,22 @@ const Game = {
     return { tier: this.s.tier + 1, need: next.species, have: this.exhibitedSpecies().size };
   },
 
+  // Each upgrade level adds a small step; see UPGRADES in data.js for the level counts.
   jeepStats() {
     const u = this.s.upgrades;
     return {
-      maxSpeed: 260 + u.engine * 45,
-      accel: 320 + u.engine * 50,
-      turnRate: 2.7 + u.tires * 0.3,
-      terrainGrip: u.tires * 0.2,                // reduces terrain slowdown by 20%/level
-      fuelMax: 30 + u.fuel * 12,
-      nets: 6 + u.netCount * 3,
-      cargoMax: 3 + u.cargo * 2,
-      reload: 0.75 * Math.pow(0.8, u.reload),
-      netPower: 0.5 + u.netStrength * 0.35,
-      netSpeed: 650 + u.netRange * 120,
-      netRange: 380 + u.netRange * 90,
-      aimCone: AUTO_AIM_CONE[u.autoAim] * Math.PI / 180,  // half-angle in radians
+      maxSpeed: Math.round(260 + u.engine * 4.5),
+      accel: 320 + u.engine * 5,
+      turnRate: 2.7 + u.tires * 0.024,
+      terrainGrip: u.tires * 0.016,              // reduces terrain slowdown (up to 80%)
+      fuelMax: 30 + u.fuel * 1.5,
+      nets: 6 + u.netCount,
+      cargoMax: 3 + u.cargo,
+      reload: 0.75 * Math.pow(0.8, u.reload / 10),
+      netPower: 0.5 + u.netStrength * 0.03,
+      netSpeed: 650 + u.netRange * 9.6,
+      netRange: 380 + u.netRange * 7.2,
+      aimCone: autoAimCone(u.autoAim) * Math.PI / 180,  // half-angle in radians
       autoFire: u.autoAim >= AUTO_FIRE_LEVEL,
     };
   },
@@ -123,7 +124,7 @@ const Game = {
 
   buyUpgrade(key) {
     const lvl = this.s.upgrades[key];
-    if (lvl >= UPGRADES[key].max || upgradeTier(key, lvl) > this.s.tier) return false;
+    if (lvl >= UPGRADES[key].levels || upgradeTier(key, lvl) > this.s.tier) return false;
     if (!this.spend(upgradeCost(key, lvl))) return false;
     this.s.upgrades[key]++;
     this.save();

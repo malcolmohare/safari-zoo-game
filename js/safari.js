@@ -380,7 +380,7 @@ const Safari = (() => {
       cargo: [], caughtThisTrip: 0,
       fuel: stats.fuelMax, reloadT: 0, t: 0, crashT: 0,
       msg: null, shake: 0, cargoWarnT: 0, respawnT: 0,
-      leftBase: false, ended: false, outOfFuelT: -1, paused: false,
+      leftBase: false, ended: false, outOfFuelT: -1, paused: false, fenceWarnT: 0,
       shownPickupTip: false,
       netsLeft: stats.nets, groundNets: [], netWarnT: 0,
       region: 0, regionsVisited: new Set(['savanna']),
@@ -492,6 +492,24 @@ const Safari = (() => {
     }
     j.x = clamp(j.x, JEEP_R, WORLD_W - JEEP_R);
     j.y = clamp(j.y, JEEP_R, WORLD_H - JEEP_R);
+
+    // Region permits: a ranger fence blocks the border of the first region your tier doesn't cover.
+    const lastOpen = Game.s.tier - 1;
+    if (lastOpen < REGION_ORDER.length - 1) {
+      const fy = boundaryY(lastOpen, j.x) + JEEP_R;
+      if (j.y < fy) {
+        j.y = fy;
+        if (j.vy < 0) j.vy *= -0.3;
+        j.speed *= 0.5;
+        S.fenceWarnT -= dt;
+        if (S.fenceWarnT <= 0) {
+          const next = BIOMES[REGION_ORDER[lastOpen + 1]];
+          message(`🚧 The ${next.name} needs a tier ${lastOpen + 2} permit: display ${TIERS[lastOpen + 1].species} species in your zoo`, 3.5);
+          Sfx.bump();
+          S.fenceWarnT = 3.5;
+        }
+      }
+    }
 
     // Dust trail
     if (Math.abs(j.speed) > 80 && Math.random() < dt * 30) {
@@ -767,6 +785,37 @@ const Safari = (() => {
 
     // Missed nets lying on the ground
     for (const g of S.groundNets) if (vis(g.x, g.y)) drawNet(g.x, g.y, 10, g.rot, 0.75);
+
+    // Ranger fence at the first region you don't have a permit for
+    const lastOpen = Game.s.tier - 1;
+    if (lastOpen < REGION_ORDER.length - 1) {
+      const fx0 = Math.max(0, Math.floor((camX - 40) / 30) * 30), fx1 = Math.min(WORLD_W, camX + W + 40);
+      if (vis(camX + W / 2, boundaryY(lastOpen, camX + W / 2), H)) {
+        ctx.strokeStyle = '#d9822b';
+        ctx.lineWidth = 4;
+        for (const off of [-14, -4]) {
+          ctx.beginPath();
+          for (let x = fx0; x <= fx1; x += 30) {
+            const y = boundaryY(lastOpen, x) + off;
+            if (x === fx0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#6b4a2a';
+        for (let x = fx0; x <= fx1; x += 60) ctx.fillRect(x - 3, boundaryY(lastOpen, x) - 24, 6, 28);
+        const next = BIOMES[REGION_ORDER[lastOpen + 1]];
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 13px system-ui, sans-serif';
+        for (let x = Math.floor(fx0 / 500) * 500 + 250; x <= fx1; x += 500) {
+          const y = boundaryY(lastOpen, x);
+          drawEmoji(ctx, '🚧', x, y - 34, 30);
+          ctx.fillStyle = 'rgba(20,28,18,0.75)';
+          ctx.fillRect(x - 90, y + 6, 180, 22);
+          ctx.fillStyle = '#ffe680';
+          ctx.fillText(`${next.icon} ${next.name}: tier ${lastOpen + 2} permit`, x, y + 22);
+        }
+      }
+    }
 
     // Region signposts on the track north
     ctx.textAlign = 'center';

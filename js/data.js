@@ -69,27 +69,31 @@ for (const [biome, list] of Object.entries(SPECIES_BY_BIOME)) {
 }
 
 // Upgrade tiers are unlocked by your zoo collection: the number of different species on
-// display in your enclosures. Tiers stay unlocked once reached.
+// display in your enclosures. Tiers stay unlocked once reached. Tier N also gives you a
+// permit for the Nth region of the wild (tier 1 = Savanna only).
+// budget = what one upgrade's levels in that tier cost in total (× the upgrade's costMult).
+// It's sized to roughly 15 safari trips of selling that tier's animals.
 const TIERS = [
-  { species: 0,  cost: 25 },    // tier 1: from the start
-  { species: 4,  cost: 100 },   // tier 2
-  { species: 9,  cost: 400 },   // tier 3
-  { species: 15, cost: 1300 },  // tier 4
-  { species: 22, cost: 4000 },  // tier 5
+  { species: 0,  budget: 80 },     // tier 1: Savanna
+  { species: 5,  budget: 320 },    // tier 2: Wetlands
+  { species: 10, budget: 1000 },   // tier 3: Jungle
+  { species: 16, budget: 3200 },   // tier 4: Desert
+  { species: 22, budget: 10000 },  // tier 5: Tundra
 ];
 
-// Jeep & net upgrades. Each upgrade's levels are spread across the 5 tiers; a level costs
-// its tier's base price × costMult, a bit more for each extra level bought in the same tier.
+// Jeep & net upgrades. Each has many small levels, spread evenly across the 5 tiers
+// (levels must be a multiple of 5). `per` describes one level's effect; the actual
+// numbers live in Game.jeepStats().
 const UPGRADES = {
-  engine:      { name: 'Engine',          icon: '⚙️', desc: 'Higher top speed & acceleration (reach far regions)', max: 5, costMult: 1.2 },
-  fuel:        { name: 'Fuel Tank',       icon: '⛽', desc: '+12 seconds per safari', max: 6, costMult: 1.0 },
-  tires:       { name: 'Off-road Tires',  icon: '🛞', desc: 'Better steering, less slowdown in mud, sand, snow & water', max: 4, costMult: 0.9 },
-  cargo:       { name: 'Cargo Cage',      icon: '📦', desc: '+2 animals per trip', max: 5, costMult: 1.3 },
-  netCount:    { name: 'Net Rack',        icon: '🧺', desc: '+3 nets per trip', max: 6, costMult: 0.8 },
-  netStrength: { name: 'Heavy Nets',      icon: '🕸️', desc: 'Stronger nets: fewer shots to tangle an animal', max: 4, costMult: 1.5 },
-  reload:      { name: 'Net Reloader',    icon: '🔄', desc: 'Fire nets faster', max: 5, costMult: 0.9 },
-  netRange:    { name: 'Net Cannon',      icon: '🎯', desc: 'Faster, longer-range nets', max: 4, costMult: 0.9 },
-  autoAim:     { name: 'Auto-Aim Turret', icon: '📡', desc: 'Turret locks onto animals in a cone ahead. Wider cone each level; can fire by itself from level 3', max: 5, costMult: 1.4 },
+  engine:      { name: 'Engine',          icon: '⚙️', per: '+4.5 top speed', levels: 50, costMult: 1.2 },
+  fuel:        { name: 'Fuel Tank',       icon: '⛽', per: '+1.5s of fuel', levels: 50, costMult: 1.0 },
+  tires:       { name: 'Off-road Tires',  icon: '🛞', per: 'Better steering, less slowdown in mud, sand, snow & water', levels: 50, costMult: 0.9 },
+  cargo:       { name: 'Cargo Cage',      icon: '📦', per: '+1 animal per trip', levels: 10, costMult: 1.3 },
+  netCount:    { name: 'Net Rack',        icon: '🧺', per: '+1 net per trip', levels: 30, costMult: 0.8 },
+  netStrength: { name: 'Heavy Nets',      icon: '🕸️', per: '+0.03 net power (fewer nets per animal)', levels: 50, costMult: 1.5 },
+  reload:      { name: 'Net Reloader',    icon: '🔄', per: 'Fire nets a little faster', levels: 50, costMult: 0.9 },
+  netRange:    { name: 'Net Cannon',      icon: '🎯', per: 'Nets fly faster and further', levels: 50, costMult: 0.9 },
+  autoAim:     { name: 'Auto-Aim Turret', icon: '📡', per: 'Turret locks onto animals in a wider cone ahead. Fires by itself from level 21', levels: 50, costMult: 1.4 },
 };
 
 const ECON = {
@@ -105,19 +109,27 @@ const ECON = {
   landCosts: [20, 50, 100, 200, 400, 700, 1200, 2000, 3200, 5000, 8000],
 };
 
-// Auto-aim cone half-angle (degrees) per Auto-Aim Turret level; auto-fire from AUTO_FIRE_LEVEL.
-const AUTO_AIM_CONE = [0, 15, 30, 45, 70, 100];
-const AUTO_FIRE_LEVEL = 3;
+// Auto-aim: cone half-angle in degrees for a given Auto-Aim Turret level; auto-fire from AUTO_FIRE_LEVEL.
+const autoAimCone = (lvl) => (lvl > 0 ? 8 + (lvl - 1) * 1.9 : 0);
+const AUTO_FIRE_LEVEL = 21;
 
 // Tier (1-5) needed to buy level index `level` (0-based) of an upgrade.
 function upgradeTier(key, level) {
-  return 1 + Math.floor(level * TIERS.length / UPGRADES[key].max);
+  return 1 + Math.floor(level * TIERS.length / UPGRADES[key].levels);
 }
 
+// Highest level of an upgrade you can own at a given tier.
+function upgradeCap(key, tier) {
+  return UPGRADES[key].levels * tier / TIERS.length;
+}
+
+const niceRound = (n) => (n < 20 ? Math.max(1, Math.round(n)) : n < 200 ? Math.round(n / 5) * 5 : Math.round(n / 10) * 10);
+
+// Each level costs its tier's budget split across the tier's levels, rising from 60% to 140%
+// of the average within the tier.
 function upgradeCost(key, level) {
-  const tier = upgradeTier(key, level);
-  let sameTierBefore = 0;
-  for (let l = level - 1; l >= 0 && upgradeTier(key, l) === tier; l--) sameTierBefore++;
-  const raw = TIERS[tier - 1].cost * UPGRADES[key].costMult * (1 + 0.5 * sameTierBefore);
-  return Math.round(raw / 5) * 5;
+  const u = UPGRADES[key], tier = upgradeTier(key, level);
+  const perTier = u.levels / TIERS.length, i = level - (tier - 1) * perTier;
+  const avg = TIERS[tier - 1].budget * u.costMult / perTier;
+  return niceRound(avg * (0.6 + 0.8 * i / Math.max(1, perTier - 1)));
 }

@@ -61,11 +61,6 @@ const UI = (() => {
     const afford = cost === null || Game.s.money >= cost;
     return `<button class="btn ${extraClass} ${afford ? '' : 'cant'}" data-action="${action}" ${attrs} ${afford ? '' : 'disabled'}>${label}${cost !== null ? ` <span class="cost">${fmtMoney(cost)}</span>` : ''}</button>`;
   };
-  function pips(level, max) {
-    let s = '';
-    for (let i = 0; i < max; i++) s += `<span class="pip ${i < level ? 'on' : ''}"></span>`;
-    return `<span class="pips">${s}</span>`;
-  }
   const money = () => `<p class="wallet">💰 ${fmtMoney(Game.s.money)}</p>`;
 
   // ---- Menus ----
@@ -84,15 +79,42 @@ const UI = (() => {
         </div>`;
       html += tierCard();
       for (const [k, u] of Object.entries(UPGRADES)) {
-        const lvl = s.upgrades[k], maxed = lvl >= u.max;
+        const lvl = s.upgrades[k], cap = upgradeCap(k, s.tier);
         let action;
-        if (maxed) action = '<span class="maxed">MAX</span>';
-        else if (upgradeTier(k, lvl) > s.tier) action = `<span class="locked">🔒 Tier ${upgradeTier(k, lvl)}</span>`;
-        else action = btn('Upgrade', 'upgrade', { key: k }, upgradeCost(k, lvl));
-        html += `<div class="card upgrade"><div class="up-head"><span class="em">${u.icon}</span><div><b>${u.name}</b>${pips(lvl, u.max)}<small>${u.desc}</small></div></div>${action}</div>`;
+        if (lvl >= u.levels) action = '<span class="maxed">MAX</span>';
+        else if (lvl >= cap) action = `<span class="locked">🔒 Tier ${s.tier + 1}<br>for more</span>`;
+        else {
+          const cost = upgradeCost(k, lvl);
+          let cost5 = 0;
+          for (let l = lvl; l < lvl + 5; l++) cost5 += upgradeCost(k, l);
+          action = `<div class="up-btns">${btn('+1', 'upgrade', { key: k }, cost)}${cap - lvl >= 5 ? btn('+5', 'upgrade5', { key: k }, cost5, 'small') : ''}</div>`;
+        }
+        html += `<div class="card upgrade"><div class="up-head"><span class="em">${u.icon}</span><div class="up-info">
+            <b>${u.name}</b> <span class="muted small">Lv ${lvl}/${u.levels}</span>
+            <div class="lvlbar"><div class="fill" style="width:${lvl / u.levels * 100}%"></div><div class="cap" style="left:${cap / u.levels * 100}%"></div></div>
+            <small>${statLine(k, st)} · each level: ${u.per}</small></div></div>${action}</div>`;
       }
       return html;
-    }, (action, d) => { if (action === 'upgrade') Game.buyUpgrade(d.key); });
+    }, (action, d) => {
+      if (action === 'upgrade') Game.buyUpgrade(d.key);
+      if (action === 'upgrade5') for (let i = 0; i < 5; i++) Game.buyUpgrade(d.key);
+    });
+  }
+
+  // Current value of the stat an upgrade improves.
+  function statLine(k, st) {
+    switch (k) {
+      case 'engine': return `Now: ${st.maxSpeed} top speed`;
+      case 'fuel': return `Now: ${st.fuelMax.toFixed(1)}s`;
+      case 'tires': return `Now: ${Math.round(st.terrainGrip * 100)}% less slowdown`;
+      case 'cargo': return `Now: ${st.cargoMax} animals`;
+      case 'netCount': return `Now: ${st.nets} nets`;
+      case 'netStrength': return `Now: ${st.netPower.toFixed(2)} power`;
+      case 'reload': return `Now: ${st.reload.toFixed(2)}s reload`;
+      case 'netRange': return `Now: ${Math.round(st.netRange)} range`;
+      case 'autoAim': return st.aimCone > 0 ? `Now: ±${Math.round(st.aimCone * 180 / Math.PI)}° cone${st.autoFire ? ' + auto-fire' : ''}` : 'Not installed';
+    }
+    return '';
   }
 
   function landCard() {
@@ -116,7 +138,7 @@ const UI = (() => {
       const prev = TIERS[s.tier - 1].species;
       const pct = clamp((have - prev) / (next.need - prev), 0, 1) * 100;
       html += `<div class="progress"><div style="width:${pct}%"></div></div>
-        <p class="muted small">Display <b>${next.need}</b> different species in your enclosures to unlock tier ${next.tier} upgrades.</p>`;
+        <p class="muted small">Display <b>${next.need}</b> different species in your enclosures to reach tier ${next.tier}: more upgrade levels, plus a permit to explore the <b>${BIOMES[REGION_ORDER[next.tier - 1]].icon} ${BIOMES[REGION_ORDER[next.tier - 1]].name}</b>.</p>`;
     } else html += `<p class="muted small">Every tier is unlocked!</p>`;
     return html + `</div>`;
   }
@@ -132,7 +154,7 @@ const UI = (() => {
     REGION_ORDER.forEach((bk, k) => {
       const b = BIOMES[bk];
       const visited = s.regionsVisited[bk];
-      html += `<div class="guide-region"><div class="guide-name">${visited ? `${b.icon} ${b.name}` : '❔ Unexplored'} <span class="muted small">${k === 0 ? 'around base camp' : `region ${k + 1}`}</span></div><div class="guide-row">`;
+      html += `<div class="guide-region"><div class="guide-name">${visited ? `${b.icon} ${b.name}` : '❔ Unexplored'} <span class="muted small">${k === 0 ? 'around base camp' : s.tier > k ? `region ${k + 1}` : `🔒 needs tier ${k + 1} permit`}</span></div><div class="guide-row">`;
       for (const d of SPECIES_BY_BIOME[bk]) {
         const known = s.discovered[d.key];
         const tip = known ? `${d.name} — sells for ${fmtMoney(d.value)}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : '???';
@@ -234,7 +256,7 @@ const UI = (() => {
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
         <li>Drive into netted animals to load them, then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. <b>Sell</b> animals there for money; that's how you earn.</li>
-        <li>Carry one of each new species to an enclosure matching its home region. The more different species on display, the higher your <b>upgrade tier</b>, which unlocks better jeep upgrades at the <b>🔧 Garage</b>.</li>
+        <li>Carry one of each new species to an enclosure matching its home region. The more different species on display, the higher your <b>tier</b>. Each tier unlocks more levels of every upgrade at the <b>🔧 Garage</b>, and a permit to explore the next region.</li>
       </ol>
       <p class="muted">The wild has five regions, each further north than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Animals from further regions are worth far more, but you'll need a faster jeep and more fuel to reach them.</p>
       ${btn('Let\'s go!', 'ok', {}, null, 'big')}`, () => {

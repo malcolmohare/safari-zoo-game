@@ -56,7 +56,8 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 - **Nets:** you only carry a limited number of nets (upgrade the Net Rack for more). Missed nets land on the ground and can be picked back up. Big animals need several nets, and a partly-netted animal shakes the net off if you leave it alone. Lions, hippos, crocodiles, gorillas, tigers, scorpions, cobras, rhinos and polar bears **charge your jeep**, and every hit costs you fuel.
 - **Fuel:** this is your time limit. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
 - **Money:** you only earn money by **selling animals** (from the truck or from an enclosure). Values climb steeply with distance: savanna animals sell for $10–45, wetlands $40–145, jungle $150–470, desert $500–1,300 and tundra $1,500–5,770.
-- **Collection & upgrade tiers:** the number of different species on display in your enclosures unlocks upgrade tiers (4, 9, 15 and 22 species for tiers 2–5). Each upgrade's higher levels need a higher tier, and cost more to match the animals you can catch by then. Tiers stay unlocked even if you sell animals later. Keep one of each species for the collection and sell the duplicates.
+- **Collection & tiers:** the number of different species on display in your enclosures sets your tier (5, 10, 16 and 22 species for tiers 2–5). Each tier gives a permit to drive into the next region (a ranger fence blocks it until then) and unlocks more levels of every upgrade. Tiers stay unlocked even if you sell animals later. Keep one of each species for the collection and sell the duplicates.
+- **Upgrades:** every upgrade has many small levels (up to 50) spread across the five tiers, e.g. the Fuel Tank is 50 levels of +1.5s. Each tier's levels are priced to take roughly 10–15 minutes of catching and selling that region's animals.
 
 ## Code layout
 
