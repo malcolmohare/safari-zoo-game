@@ -108,6 +108,7 @@ const Game = {
     if (this.s.perks[key]) return false;
     if (!this.spend(PERKS[key].cost)) return false;
     this.s.perks[key] = true;
+    Analytics.track('perk_bought', { perk: key });
     this.save();
     return true;
   },
@@ -135,7 +136,7 @@ const Game = {
   // Raise the unlocked tier if the collection has grown. Returns the new tier, or 0.
   checkTierUp() {
     const t = this.collectionTier();
-    if (t > this.s.tier) { this.s.tier = t; return t; }
+    if (t > this.s.tier) { this.s.tier = t; Analytics.track('tier_reached', { tier: t, day: this.s.day }); return t; }
     return 0;
   },
 
@@ -192,6 +193,7 @@ const Game = {
     if (lvl >= UPGRADES[key].levels || upgradeTier(key, lvl) > this.s.tier) return false;
     if (!this.spend(upgradeFullCost(key, lvl))) return false;
     this.s.upgrades[key]++;
+    Analytics.track('upgrade_bought', { upgrade: key, level: this.s.upgrades[key] });
     this.save();
     return true;
   },

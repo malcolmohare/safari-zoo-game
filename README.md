@@ -63,6 +63,12 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 - **Resources:** each region has its own resource to gather by driving over the glowing nodes: 🌾 grass (Savanna), 🪵 wood (Wetlands), 🍄 mushrooms (Jungle), 🌵 cactus (Desert) and 🧊 ice (Tundra). Building or expanding an enclosure costs money plus its region's resource, buying plots costs resources from further and further regions, and the Camp Supply Depot perk needs grass. Jeep upgrades cost money only.
 - **Upgrades:** every upgrade has many small levels (up to 50) spread across the five tiers, e.g. the Fuel Tank is 50 levels of +1.5s. Each tier's levels are priced to take roughly 10–15 minutes of catching and selling that region's animals.
 
+## Analytics
+
+The game can report to **Google Analytics 4**. Put your Measurement ID (`G-XXXXXXXXXX`) in `GA_MEASUREMENT_ID` at the top of `js/analytics.js`. While it's empty, or when the game runs locally, nothing is sent.
+
+Besides standard page views and users, it sends these events: `game_open` (new vs returning player), `safari_start`, `safari_end` (animals caught, value, towed), `tier_reached`, `region_discovered`, `upgrade_bought` and `perk_bought`.
+
 ## Code layout
 
 | File | What's in it |
@@ -75,6 +81,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | `js/main.js` | Input, switching between scenes, main loop |
 | `js/touch.js` | Touch joystick and on-screen buttons for phones |
 | `js/util.js` | Helpers, emoji sprite cache, synthesized sound effects |
+| `js/analytics.js` | Google Analytics setup and game events |
 
 Graphics are emoji drawn on a canvas, and sounds are generated with WebAudio, so there are no asset files.
 

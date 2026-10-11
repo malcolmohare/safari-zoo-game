@@ -15,6 +15,7 @@ const App = {
   last: 0,
 
   start() {
+    Analytics.init();
     Game.load();
     Zoo.init(document.getElementById('zoo-canvas'));
     Safari.init(document.getElementById('safari-canvas'));
@@ -24,6 +25,7 @@ const App = {
     window.addEventListener('resize', () => this.resize());
     this.resize();
     UI.refresh();
+    Analytics.track('game_open', { returning: Game.s.seenIntro, day: Game.s.day, tier: Game.s.tier, touch: TouchControls.enabled });
     if (!Game.s.seenIntro) UI.showIntro();
     requestAnimationFrame((t) => this.loop(t));
   },
@@ -64,11 +66,14 @@ const App = {
     this.setScene('safari');
     Input.mouse.x = window.innerWidth / 2;
     Input.mouse.y = window.innerHeight / 3;
+    Analytics.track('safari_start', { day: Game.s.day, tier: Game.s.tier });
     Safari.start((cargo, towed, regions, gathered) => this.endSafari(cargo, towed, regions, gathered));
   },
 
   endSafari(cargo, towed, regions, gathered) {
     const report = Game.endTrip(cargo, towed, regions, gathered);
+    Analytics.track('safari_end', { day: report.day, caught: cargo.length, value: report.value, towed });
+    for (const r of report.newRegions) Analytics.track('region_discovered', { region: r });
     Input.keys.clear();
     this.setScene('zoo');
     Zoo.arriveHome();
