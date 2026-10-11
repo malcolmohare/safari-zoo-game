@@ -160,6 +160,17 @@ const Safari = (() => {
     return out;
   }
 
+  // Take health off the jeep; at 0 it breaks down and gets towed home.
+  function damageJeep(dmg) {
+    S.hp = Math.max(0, S.hp - dmg);
+    if (S.hp <= 0 && S.outOfFuelT < 0) {
+      S.outOfFuelT = 0;
+      S.brokeDown = true;
+      message(`💥 Your jeep broke down! A tow truck hauls you home (-$${ECON.towFee})`, 3);
+      Sfx.error();
+    }
+  }
+
   // Destroy an obstacle the jeep crashed into: it's removed from the world in a burst of debris.
   function smashObstacle(o) {
     o.dead = true;
@@ -275,10 +286,12 @@ const Safari = (() => {
         const ang = Math.atan2(j.y - a.y, j.x - a.x);
         j.vx += Math.cos(ang) * 420; j.vy += Math.sin(ang) * 420;
         j.speed *= -0.3;
-        S.fuel = Math.max(0, S.fuel - 4);
+        // Bigger, tougher animals hit harder.
+        const dmg = Math.round(6 + def.hp * 3);
         S.shake = 12;
-        floatText(j.x, j.y - 30, '-4s fuel', '#ff7070', 16);
+        floatText(j.x, j.y - 30, `-${dmg} ❤️`, '#ff7070', 16);
         Sfx.bump();
+        damageJeep(dmg);
         a.recoilT = 2.2;
         a.angryT = 0;
         a.dir = ang + Math.PI;
@@ -515,18 +528,12 @@ const Safari = (() => {
           if (impact > 60 && S.crashT <= 0) {
             // A real crash smashes the obstacle and damages the jeep (~1 health per 10 impact speed).
             const dmg = Math.max(2, Math.round(impact / 10));
-            S.hp = Math.max(0, S.hp - dmg);
             S.crashT = 0.4;
             S.shake = Math.min(12, impact / 25);
             smashObstacle(o);
             floatText(j.x, j.y - 30, `Crash! -${dmg} ❤️`, '#ff7070', 16);
             Sfx.bump();
-            if (S.hp <= 0 && S.outOfFuelT < 0) {
-              S.outOfFuelT = 0;
-              S.brokeDown = true;
-              message(`💥 Your jeep broke down! A tow truck hauls you home (-$${ECON.towFee})`, 3);
-              Sfx.error();
-            }
+            damageJeep(dmg);
           }
         }
       }
