@@ -81,9 +81,10 @@ Besides standard page views and users, it sends these events: `game_open` (new v
 | `js/main.js` | Input, switching between scenes, main loop |
 | `js/touch.js` | Touch joystick and on-screen buttons for phones |
 | `js/util.js` | Helpers, emoji sprite cache, synthesized sound effects |
+| `js/sprites.js` | Procedural graphics: noise, top-down trees and rocks, ground textures, shadows |
 | `js/analytics.js` | Google Analytics setup and game events |
 
-Graphics are emoji drawn on a canvas, and sounds are generated with WebAudio, so there are no asset files.
+Graphics are drawn in code on a canvas, so there are no asset files: terrain, trees, rocks, water and textures are generated procedurally (`js/sprites.js`), and animals and some icons are emoji. Sounds are generated with WebAudio.
 
 ## License
 

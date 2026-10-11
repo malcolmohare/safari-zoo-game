@@ -13,11 +13,11 @@ const Safari = (() => {
 
   // Obstacles and decoration per region: [emojis, count, collision radius, draw size]
   const REGION_FEATURES = {
-    savanna:  { ponds: 5,  ice: 0,  obstacles: [[['🌳'], 60, 16, 52], [['🪨'], 30, 18, 36]], decor: ['🌼', '🌱', '🌼'] },
-    wetlands: { ponds: 26, ice: 0,  obstacles: [[['🌳'], 45, 16, 52], [['🪨'], 15, 18, 34]], decor: ['🪷', '🌿', '🌱'] },
-    jungle:   { ponds: 3,  ice: 0,  obstacles: [[['🌴', '🌳', '🌴'], 300, 16, 56], [['🪨'], 20, 18, 36]], decor: ['🌿', '🌺', '☘️'] },
-    desert:   { ponds: 2,  ice: 0,  obstacles: [[['🪨'], 80, 18, 38], [['🌴'], 25, 16, 52]], decor: ['🦴', '🐚'] },
-    tundra:   { ponds: 0,  ice: 10, obstacles: [[['🌲'], 110, 15, 50], [['🪨'], 30, 18, 36]], decor: ['❄️', '🌨️'] },
+    savanna:  { ponds: 5,  ice: 0,  obstacles: [[['🌳'], 60, 16, 52], [['🪨'], 30, 18, 36]] },
+    wetlands: { ponds: 26, ice: 0,  obstacles: [[['🌳'], 45, 16, 52], [['🪨'], 15, 18, 34]] },
+    jungle:   { ponds: 3,  ice: 0,  obstacles: [[['🌴', '🌳', '🌴'], 300, 16, 56], [['🪨'], 20, 18, 36]] },
+    desert:   { ponds: 2,  ice: 0,  obstacles: [[['🪨'], 80, 18, 38], [['🌴'], 25, 16, 52]] },
+    tundra:   { ponds: 0,  ice: 10, obstacles: [[['🌲'], 110, 15, 50], [['🪨'], 30, 18, 36]] },
   };
 
   let canvas, ctx, W = 0, H = 0;
@@ -80,7 +80,13 @@ const Safari = (() => {
         for (let i = 0; i < n; i++) {
           const p = randPointIn(b, 300);
           if (!p || inCircles(w.ponds, p.x, p.y, 20) || inCircles(w.ice, p.x, p.y, 10)) continue;
-          const o = { x: p.x, y: p.y, r, size, emoji: emojis[randInt(0, emojis.length - 1)] };
+          const emoji = emojis[randInt(0, emojis.length - 1)];
+          const o = { x: p.x, y: p.y, r, size, emoji, biome: b, variant: randInt(0, 5) };
+          // How it's drawn: top-down trees get a canopy wider than their trunk (the collision circle).
+          if (emoji === '🪨') { o.kind = 'rock'; o.draw = size * 1.15; o.tint = b === 'desert' ? 'sand' : b === 'jungle' || b === 'wetlands' ? 'dark' : 'grey'; }
+          else if (emoji === '🌴') { o.kind = 'palm'; o.draw = size * 1.6; }
+          else if (emoji === '🌲') { o.kind = 'pine'; o.draw = size * 1.35; }
+          else { o.kind = b === 'savanna' ? 'acacia' : b === 'jungle' ? 'jungle' : 'broadleaf'; o.draw = size * (b === 'savanna' ? 1.7 : 1.5); }
           w.obstacles.push(o);
           const key = Math.floor(o.x / CELL) + ',' + Math.floor(o.y / CELL);
           if (!w.grid.has(key)) w.grid.set(key, []);
@@ -92,11 +98,15 @@ const Safari = (() => {
     w.obstacles.sort((a, b) => a.y - b.y);
 
     // Non-colliding ground decoration.
-    for (let i = 0; i < 500; i++) {
+    const DETAILS = {
+      savanna: ['drytuft', 'drytuft', 'tuft', 'flowers'], wetlands: ['reeds', 'tuft', 'fern'],
+      jungle: ['fern', 'fern', 'tuft'], desert: ['pebbles', 'pebbles', 'drytuft'], tundra: ['snowmound', 'snowmound', 'snowmound'],
+    };
+    for (let i = 0; i < 1600; i++) {
       const x = rand(0, WORLD_W), y = rand(0, WORLD_H);
       if (inCircles(w.ponds, x, y) || inCircles(w.ice, x, y)) continue;
-      const opts = REGION_FEATURES[biomeAt(x, y)].decor;
-      w.decor.push({ x, y, emoji: opts[randInt(0, opts.length - 1)], size: rand(14, 22) });
+      const opts = DETAILS[biomeAt(x, y)];
+      w.decor.push({ x, y, kind: opts[randInt(0, opts.length - 1)], seed: randInt(0, 5), size: rand(18, 30) });
     }
 
     // Resource nodes to gather (one resource type per region).
@@ -115,17 +125,35 @@ const Safari = (() => {
     w.terrain = renderTerrain(w);
   }
 
+  // Ground colours per region: [main, patches, accent].
+  const GROUND = {
+    savanna:  [[206, 182, 112], [176, 160, 92], [186, 148, 98]],
+    wetlands: [[112, 146, 92],  [86, 124, 74],  [118, 104, 74]],
+    jungle:   [[66, 112, 52],   [48, 92, 42],   [88, 128, 60]],
+    desert:   [[232, 202, 146], [214, 180, 124], [240, 216, 168]],
+    tundra:   [[236, 241, 247], [212, 224, 238], [246, 249, 252]],
+  };
+
   function renderTerrain(w) {
     const nw = Math.ceil(WORLD_W / TERRAIN_SCALE), nh = Math.ceil(WORLD_H / TERRAIN_SCALE);
     const c = document.createElement('canvas');
     c.width = nw; c.height = nh;
     const g = c.getContext('2d');
     const img = g.createImageData(nw, nh);
+    const ox = w.ph[0] * 50, oy = w.ph[1] * 50;
     for (let py = 0; py < nh; py++) {
       for (let px = 0; px < nw; px++) {
         const x = px * TERRAIN_SCALE, y = py * TERRAIN_SCALE;
-        const col = BIOMES[biomeAt(x, y)].ground;
-        const v = Math.sin(x * 0.02) * Math.cos(y * 0.017) * 6 + Math.sin(x * 0.003 + y * 0.004) * 8 + (Math.random() - 0.5) * 10;
+        const large = Sprites.fbm(x * 0.0025 + ox, y * 0.0025 + oy);
+        const med = Sprites.fbm(x * 0.012 + oy, y * 0.012 + ox);
+        // Ragged, natural-looking borders between regions.
+        const biome = biomeAt(x, y + (large - 0.5) * 140);
+        const pal = GROUND[biome];
+        let col = Sprites.mix(pal[0], pal[1], Math.min(1, Math.max(0, (large - 0.35) * 2.5)));
+        if (med > 0.68) col = Sprites.mix(col, pal[2], Math.min(1, (med - 0.68) * 4));
+        let v = (med - 0.5) * 18 + (Math.random() - 0.5) * 7;
+        if (biome === 'desert') v += Math.sin(x * 0.05 + y * 0.018 + large * 9) * 7;      // dune ripples
+        if (biome === 'tundra') col = Sprites.mix(col, [196, 212, 232], Math.max(0, (large - 0.6) * 1.5)); // blue drift shadows
         const i = (py * nw + px) * 4;
         img.data[i] = col[0] + v; img.data[i + 1] = col[1] + v; img.data[i + 2] = col[2] + v; img.data[i + 3] = 255;
       }
@@ -134,19 +162,41 @@ const Safari = (() => {
     const s = 1 / TERRAIN_SCALE;
     for (const p of w.ponds) {
       const wet = biomeAt(p.x, p.y) === 'wetlands';
-      g.fillStyle = wet ? '#5f7d4a' : '#c9b170';
-      g.beginPath(); g.arc(p.x * s, p.y * s, (p.r + 10) * s, 0, Math.PI * 2); g.fill();
-      g.fillStyle = wet ? '#4b8fa8' : '#4f9fd1';
-      g.beginPath(); g.arc(p.x * s, p.y * s, p.r * s, 0, Math.PI * 2); g.fill();
+      const px = p.x * s, py = p.y * s, pr = p.r * s;
+      // damp shoreline
+      let gr = g.createRadialGradient(px, py, pr * 0.9, px, py, pr + 18 * s);
+      gr.addColorStop(0, wet ? 'rgba(70,90,50,0.9)' : 'rgba(150,120,70,0.9)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(px, py, pr + 18 * s, 0, Math.PI * 2); g.fill();
+      // water, deeper in the middle
+      gr = g.createRadialGradient(px - pr * 0.2, py - pr * 0.2, pr * 0.1, px, py, pr);
+      gr.addColorStop(0, wet ? '#2c5e6a' : '#2f6f9a');
+      gr.addColorStop(0.7, wet ? '#3f7a7a' : '#3f8fbf');
+      gr.addColorStop(1, wet ? '#6f9a80' : '#7fb8cf');
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
     }
     for (const p of w.ice) {
-      g.fillStyle = '#b6dcf0';
-      g.beginPath(); g.arc(p.x * s, p.y * s, p.r * s, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1;
-      g.beginPath(); g.arc(p.x * s, p.y * s, p.r * s * 0.6, 0.3, 1.6); g.stroke();
+      const px = p.x * s, py = p.y * s, pr = p.r * s;
+      const gr = g.createRadialGradient(px - pr * 0.3, py - pr * 0.3, 0, px, py, pr);
+      gr.addColorStop(0, '#e6f6ff'); gr.addColorStop(0.7, '#b9dff2'); gr.addColorStop(1, 'rgba(170,210,235,0.6)');
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
+      // a few faint hairline cracks
+      g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 0.4;
+      for (let k = 0; k < 5; k++) {
+        g.beginPath();
+        let x = px + rand(-pr, pr) * 0.6, y = py + rand(-pr, pr) * 0.6;
+        g.moveTo(x, y);
+        for (let t = 0; t < 3; t++) { x += rand(-pr, pr) * 0.12; y += rand(-pr, pr) * 0.12; g.lineTo(x, y); }
+        g.stroke();
+      }
     }
-    // Base camp dirt patch.
-    g.fillStyle = '#a88a5a';
+    // Base camp: trampled dirt.
+    const gr = g.createRadialGradient(BASE.x * s, BASE.y * s, 0, BASE.x * s, BASE.y * s, BASE.r * s);
+    gr.addColorStop(0, '#a3845a'); gr.addColorStop(0.85, '#a88a5e'); gr.addColorStop(1, 'rgba(168,138,94,0)');
+    g.fillStyle = gr;
     g.beginPath(); g.arc(BASE.x * s, BASE.y * s, BASE.r * s, 0, Math.PI * 2); g.fill();
     return c;
   }
@@ -177,7 +227,7 @@ const Safari = (() => {
     const key = Math.floor(o.x / CELL) + ',' + Math.floor(o.y / CELL);
     const arr = S.world.grid.get(key);
     if (arr) arr.splice(arr.indexOf(o), 1);
-    const colors = { '🪨': ['#8d8d8d', '#b5b5b5'], '🌵': ['#4f9a3c', '#7bc35f'], '🌲': ['#2f6b3a', '#6b4a2a'] }[o.emoji] || ['#4f8f3a', '#7a5230'];
+    const colors = { rock: o.tint === 'sand' ? ['#b08a5a', '#d6b588'] : ['#8d8d8d', '#b5b5b5'], pine: ['#2f6b3a', '#6b4a2a'], palm: ['#5a8c36', '#8a6a3a'] }[o.kind] || ['#4f8f3a', '#7a5230'];
     for (const c of colors) burst(o.x, o.y - o.size * 0.3, c, 12);
   }
 
@@ -722,33 +772,73 @@ const Safari = (() => {
 
   // ---------------- Rendering ----------------
 
+  // A canvas tent seen from above: two roof halves, lit and shaded, with a ridge line.
+  function drawTent(x, y, size, rot, color) {
+    Sprites.shadow(ctx, x, y, size * 0.6, size * 0.45, 0.35, 0.3);
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rot);
+    const w = size * 0.55, h = size * 0.4;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(-w, -h); ctx.lineTo(w, -h); ctx.lineTo(w, 0); ctx.lineTo(-w, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.moveTo(-w, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h); ctx.lineTo(-w, h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color; ctx.globalAlpha = 0.75;
+    ctx.fillRect(-w, 0, w * 2, h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-w - 4, 0); ctx.lineTo(w + 4, 0); ctx.stroke();
+    ctx.restore();
+  }
+
   function drawJeep(j) {
+    Sprites.shadow(ctx, j.x, j.y, 30, 20, 0.45, 0.3);
     ctx.save();
     ctx.translate(j.x, j.y);
     ctx.rotate(j.angle);
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(-24, -13, 50, 30);
-    // wheels
-    ctx.fillStyle = '#222';
-    for (const [wx, wy] of [[-16, -16], [12, -16], [-16, 11], [12, 11]]) ctx.fillRect(wx, wy, 11, 5);
-    // body
-    ctx.fillStyle = '#5d7a3a';
+    // wheels with tread
+    for (const [wx, wy] of [[-17, -17], [11, -17], [-17, 11], [11, 11]]) {
+      ctx.fillStyle = '#1b1b1b';
+      ctx.fillRect(wx, wy, 12, 6);
+      ctx.fillStyle = '#3a3a3a';
+      for (let k = 1; k < 12; k += 3) ctx.fillRect(wx + k, wy, 1, 6);
+    }
+    // body with metallic shading
+    let gr = ctx.createLinearGradient(0, -13, 0, 13);
+    gr.addColorStop(0, '#7f9c52'); gr.addColorStop(0.5, '#5d7a3a'); gr.addColorStop(1, '#3f5626');
+    ctx.fillStyle = gr;
     roundRect(-24, -13, 48, 26, 5); ctx.fill();
-    ctx.fillStyle = '#6f8f47';
-    roundRect(-20, -10, 30, 20, 3); ctx.fill();
-    // windshield
-    ctx.fillStyle = '#9fd3e8';
-    ctx.fillRect(8, -10, 5, 20);
-    // hood
-    ctx.fillStyle = '#4e6830';
-    ctx.fillRect(13, -11, 10, 22);
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+    // open cargo bed at the back
+    ctx.fillStyle = '#4a3b26';
+    roundRect(-21, -10, 20, 20, 2); ctx.fill();
+    ctx.strokeStyle = '#2b2116'; ctx.lineWidth = 1;
+    for (let k = -18; k < 0; k += 4) { ctx.beginPath(); ctx.moveTo(k, -10); ctx.lineTo(k, 10); ctx.stroke(); }
+    // roll bar
+    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-1, -12); ctx.lineTo(-1, 12); ctx.stroke();
+    // seats
+    ctx.fillStyle = '#3b2f22';
+    ctx.fillRect(1, -9, 6, 7); ctx.fillRect(1, 2, 6, 7);
+    // windshield with reflection
+    gr = ctx.createLinearGradient(8, -11, 13, 11);
+    gr.addColorStop(0, '#d8f2ff'); gr.addColorStop(0.4, '#8cc4dc'); gr.addColorStop(1, '#4f7f95');
+    ctx.fillStyle = gr;
+    ctx.fillRect(8, -11, 4, 22);
+    // hood with a centre crease
+    gr = ctx.createLinearGradient(12, -12, 24, 12);
+    gr.addColorStop(0, '#6f8f47'); gr.addColorStop(1, '#46602b');
+    ctx.fillStyle = gr;
+    roundRect(12, -12, 12, 24, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(23, 0); ctx.stroke();
     // headlights
-    ctx.fillStyle = '#fff6b0';
-    ctx.fillRect(22, -10, 2, 4); ctx.fillRect(22, 6, 2, 4);
-    // spare tire
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#fff6c8';
+    ctx.beginPath(); ctx.arc(23, -8, 2, 0, Math.PI * 2); ctx.arc(23, 8, 2, 0, Math.PI * 2); ctx.fill();
+    // spare tyre
+    ctx.fillStyle = '#1b1b1b';
     ctx.beginPath(); ctx.arc(-25, 0, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#555';
+    ctx.beginPath(); ctx.arc(-25, 0, 2.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
     // Net launcher turret
@@ -808,14 +898,37 @@ const Safari = (() => {
     // Terrain
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(S.world.terrain, 0, 0, WORLD_W, WORLD_H);
+    // Fine grain so the ground stays crisp up close.
+    if (!S.grain) S.grain = Sprites.grainPattern(ctx);
+    ctx.fillStyle = S.grain;
+    ctx.fillRect(camX, camY, W, H);
 
     const vis = (x, y, m = 80) => x > camX - m && x < camX + W + m && y > camY - m && y < camY + H + m;
 
-    for (const d of S.world.decor) if (vis(d.x, d.y)) drawEmoji(ctx, d.emoji, d.x, d.y, d.size, false, 0.7);
+    // Water shimmer
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    for (const p of S.world.ponds) {
+      if (!vis(p.x, p.y, p.r)) continue;
+      for (let k = 0; k < 3; k++) {
+        const ph = S.t * 0.6 + k * 2.1 + p.x * 0.01;
+        const rx = p.x + Math.cos(ph) * p.r * 0.4, ry = p.y + Math.sin(ph * 0.7) * p.r * 0.35;
+        ctx.beginPath(); ctx.arc(rx, ry, p.r * 0.18, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
+      }
+    }
+
+    for (const d of S.world.decor) if (vis(d.x, d.y)) Sprites.draw(ctx, Sprites.makeDetail(d.kind, d.seed), d.x, d.y, d.size);
+
+    // Shadows of trees and rocks (drawn on the ground, under animals and the jeep)
+    for (const o of S.world.obstacles) {
+      if (o.dead || !vis(o.x, o.y, o.draw)) continue;
+      const rr = o.kind === 'rock' ? o.draw * 0.5 : o.draw * 0.48;
+      Sprites.shadow(ctx, o.x, o.y, rr, rr * 0.85, o.kind === 'rock' ? 0.4 : 0.32, o.kind === 'rock' ? 0.22 : 0.35);
+    }
 
     // Base camp
-    drawEmoji(ctx, '⛺', BASE.x - 70, BASE.y - 40, 48);
-    drawEmoji(ctx, '⛺', BASE.x + 75, BASE.y - 25, 44);
+    drawTent(BASE.x - 70, BASE.y - 40, 64, 0.15, '#c96b2c');
+    drawTent(BASE.x + 75, BASE.y - 25, 56, -0.2, '#6b8a3a');
     drawEmoji(ctx, '🚩', BASE.x, BASE.y - 110, 36);
     drawEmoji(ctx, '⛽', BASE.x - 90, BASE.y + 60, 30);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -835,8 +948,7 @@ const Safari = (() => {
     for (const a of S.animals) {
       if (!vis(a.x, a.y)) continue;
       const def = a.def;
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.beginPath(); ctx.ellipse(a.x, a.y + def.size * 0.38, def.size * 0.38, def.size * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+      Sprites.shadow(ctx, a.x + def.size * 0.06, a.y + def.size * 0.34, def.size * 0.42, def.size * 0.16, 0.38, 0.3);
       const bob = a.spd > 20 ? Math.abs(Math.sin(a.bob)) * 4 : Math.sin(a.bob) * 0.8;
       const fly = def.flies ? 10 : 0;
       const wiggle = a.state === 'tangled' ? Math.sin(S.t * 30) * 2 : 0;
@@ -952,8 +1064,10 @@ const Safari = (() => {
     // Trees & rocks on top (so you can hide under the canopy)
     for (const o of S.world.obstacles) {
       if (o.dead || !vis(o.x, o.y)) continue;
-      const nearJeep = dist(o.x, o.y - o.size * 0.3, S.jeep.x, S.jeep.y) < o.size * 0.6;
-      drawEmoji(ctx, o.emoji, o.x, o.y - o.size * 0.3, o.size, false, nearJeep ? 0.5 : 1);
+      // Canopies go see-through when the jeep drives underneath.
+      const nearJeep = o.kind !== 'rock' && dist(o.x, o.y, S.jeep.x, S.jeep.y) < o.draw * 0.45;
+      const sprite = o.kind === 'rock' ? Sprites.makeRock(Math.round(o.draw), o.tint, o.variant, o.biome === 'tundra') : Sprites.makeTree(o.kind, Math.round(o.draw), o.variant);
+      Sprites.draw(ctx, sprite, o.x, o.y, o.draw * (o.kind === 'rock' ? 1.2 : 1.3), nearJeep ? 0.45 : 1);
     }
 
     // Floating texts
@@ -983,6 +1097,7 @@ const Safari = (() => {
     }
 
     ctx.restore();
+    Sprites.vignette(ctx, W, H);
     renderHUD();
   }
 

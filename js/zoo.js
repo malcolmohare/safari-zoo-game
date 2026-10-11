@@ -284,14 +284,12 @@ const Zoo = (() => {
     ctx.translate(-cam.x, -cam.y);
 
     // Grass
-    ctx.fillStyle = '#86bf5f';
+    ctx.fillStyle = pattern('grass');
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    ctx.fillStyle = 'rgba(60,120,40,0.18)';
-    for (let i = 0; i < 400; i++) ctx.fillRect((i * 97.3) % WORLD_W, (i * 61.7 + (i % 7) * 13) % WORLD_H, 4, 4);
 
     // Paths
     const xs = pathXs(), ys = pathYs(), minRow = minPathRow();
-    ctx.strokeStyle = '#e9dcb0';
+    ctx.strokeStyle = pattern('gravel');
     ctx.lineWidth = G - 24;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -299,7 +297,7 @@ const Zoo = (() => {
     for (const x of xs) { ctx.moveTo(x, ys[minRow]); ctx.lineTo(x, ys[ys.length - 1]); }
     ctx.stroke();
     // Plaza
-    ctx.fillStyle = '#e9dcb0';
+    ctx.fillStyle = pattern('gravel');
     ctx.fillRect(xs[0] - (G - 24) / 2, GRID_H - G / 2, WORLD_W - G + 24, WORLD_H - GRID_H + G / 2 - 30);
 
     Game.s.plots.forEach((p, i) => drawPlot(plotRect(i), i));
@@ -323,6 +321,7 @@ const Zoo = (() => {
     drawKeeper();
 
     ctx.restore();
+    Sprites.vignette(ctx, W, H);
     drawPrompt();
   }
 
@@ -361,22 +360,31 @@ const Zoo = (() => {
       ctx.fillText('Empty plot', p.x + p.w / 2, p.y + p.h / 2 + 6);
     } else {
       const b = BIOMES[enc.biome];
-      ctx.fillStyle = b.color;
+      ctx.fillStyle = pattern(enc.biome);
       ctx.fillRect(p.x, p.y, p.w, p.h);
-      const deco = { savanna: ['🌳', '🌾'], wetlands: ['🪷', '🌾'], jungle: ['🌴', '🌿'], desert: ['🌵', '🪨'], tundra: ['🧊', '🌲'] }[enc.biome];
-      drawEmoji(ctx, deco[0], p.x + p.w * 0.86, p.y + p.h * 0.3, 54);
-      drawEmoji(ctx, deco[1], p.x + p.w * 0.1, p.y + p.h * 0.84, 32);
-      drawExpansionDecor(p, i, enc);
       if (enc.biome !== 'desert') {
-        ctx.fillStyle = enc.biome === 'tundra' ? '#7cc0e6' : '#5aa9d6';
-        ctx.beginPath();
-        ctx.ellipse(p.x + p.w * 0.2, p.y + p.h * 0.34, p.w * (enc.biome === 'wetlands' ? 0.16 : 0.1), p.h * 0.08, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // pool with a little depth
+        const px = p.x + p.w * 0.2, py = p.y + p.h * 0.34, rx = p.w * (enc.biome === 'wetlands' ? 0.16 : 0.1), ry = p.h * 0.08;
+        ctx.save();
+        ctx.translate(px, py); ctx.scale(1, ry / rx);
+        const gr = ctx.createRadialGradient(-rx * 0.2, -rx * 0.2, 0, 0, 0, rx);
+        gr.addColorStop(0, enc.biome === 'tundra' ? '#4f8fb8' : '#2f6f9a');
+        gr.addColorStop(0.75, enc.biome === 'tundra' ? '#8ccbe8' : '#4f9fcf');
+        gr.addColorStop(1, 'rgba(120,90,60,0.8)');
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       }
+      const deco = { savanna: ['tree:acacia', '🌾'], wetlands: ['tree:broadleaf', '🪷'], jungle: ['tree:palm', '🌿'], desert: ['🌵', 'rock:sand'], tundra: ['🧊', 'tree:pine'] }[enc.biome];
+      drawDecor(deco[0], p.x + p.w * 0.86, p.y + p.h * 0.3, 60, i);
+      drawDecor(deco[1], p.x + p.w * 0.1, p.y + p.h * 0.84, 32, i + 1);
+      drawExpansionDecor(p, i, enc);
       const list = enc.animals.map((a) => ({ a, st: animalState(a) })).sort((m, n) => m.st.y - n.st.y);
       for (const { a, st } of list) {
         const bob = st.wait > 0 ? 0 : Math.abs(Math.sin(st.bob)) * 3;
-        drawEmoji(ctx, SPECIES[a.sp].emoji, p.x + st.x * p.w, p.y + st.y * p.h - bob, 40, st.flip);
+        const ax = p.x + st.x * p.w, ay = p.y + st.y * p.h;
+        Sprites.shadow(ctx, ax + 2, ay + 14, 17, 6, 0.35, 0.2);
+        drawEmoji(ctx, SPECIES[a.sp].emoji, ax, ay - bob, 40, st.flip);
       }
       // fence
       ctx.strokeStyle = b.fence;
@@ -413,6 +421,34 @@ const Zoo = (() => {
     }
   }
 
+  // Ground textures used across the zoo.
+  const TEXTURES = {
+    grass:    [[124, 172, 86], [100, 150, 68]],
+    gravel:   [[220, 206, 166], [192, 176, 136]],
+    savanna:  [[214, 190, 120], [188, 164, 98]],
+    wetlands: [[118, 158, 102], [92, 132, 80]],
+    jungle:   [[76, 124, 58], [56, 100, 44]],
+    desert:   [[236, 208, 152], [214, 184, 128]],
+    tundra:   [[236, 242, 248], [208, 222, 238]],
+  };
+  const patterns = {};
+  function pattern(key) {
+    if (!patterns[key]) patterns[key] = ctx.createPattern(Sprites.groundTile('zoo-' + key, TEXTURES[key], key === 'gravel' ? 0.12 : 0.05), 'repeat');
+    return patterns[key];
+  }
+  const TREE_EMOJI = { '🌳': 'tree:broadleaf', '🌴': 'tree:palm', '🌲': 'tree:pine' };
+
+  // Draw a decoration: an emoji, or a procedural top-down tree/rock ("tree:kind" / "rock:tint").
+  function drawDecor(what, x, y, size, seed) {
+    if (what.startsWith('tree:')) {
+      Sprites.shadow(ctx, x, y, size * 0.48, size * 0.4, 0.3, 0.35);
+      Sprites.draw(ctx, Sprites.makeTree(what.slice(5), Math.round(size), seed % 6), x, y, size * 1.3);
+    } else if (what.startsWith('rock:')) {
+      Sprites.shadow(ctx, x, y, size * 0.5, size * 0.4, 0.35, 0.25);
+      Sprites.draw(ctx, Sprites.makeRock(Math.round(size), what.slice(5), seed % 6, false), x, y, size * 1.2);
+    } else drawEmoji(ctx, what, x, y, size);
+  }
+
   // Each expansion adds two more decorations, themed to the enclosure's habitat.
   const EXPANSION_DECOR = {
     savanna:  ['🌳', '🪨', '🌼', '🪵', '🌾', '🌳', '🌼', '🪨'],
@@ -439,7 +475,7 @@ const Zoo = (() => {
       const age = t - anim.t;
       let size = 34;
       if (isNew && age < 0.6) size *= 0.3 + 0.7 * Math.sin(Math.min(1, age / 0.6) * Math.PI / 2) * 1.15;
-      drawEmoji(ctx, items[k], p.x + sx * p.w, p.y + sy * p.h, size);
+      drawDecor(TREE_EMOJI[items[k]] || items[k], p.x + sx * p.w, p.y + sy * p.h, TREE_EMOJI[items[k]] ? size * 1.5 : size, plotIdx + k);
       if (isNew && age < 1.5) drawEmoji(ctx, '✨', p.x + sx * p.w + 14, p.y + sy * p.h - 16, 22, false, 1 - age / 1.5);
     }
   }
