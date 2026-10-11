@@ -7,6 +7,15 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 const fmtMoney = (n) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
 
+// Plain-text label for a cost ({ money, res } or a number), e.g. "$20 + 10🌾".
+function costLabel(cost) {
+  if (typeof cost === 'number') return fmtMoney(cost);
+  const parts = [];
+  if (cost.money) parts.push(fmtMoney(cost.money));
+  for (const [k, v] of Object.entries(cost.res || {})) parts.push(`${v}${RESOURCES[k].emoji}`);
+  return parts.join(' + ');
+}
+
 function weightedPick(list, weightFn) {
   const total = list.reduce((s, x) => s + weightFn(x), 0);
   let r = Math.random() * total;

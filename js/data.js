@@ -122,6 +122,24 @@ const ECON = {
   plotRows: 3,
   // Price of each extra plot, in the order you buy them (you start owning one plot).
   landCosts: [20, 50, 100, 200, 400, 700, 1200, 2000, 3200, 5000, 8000],
+  // ...plus resources, stepping through the regions as you buy more land.
+  landResCosts: [
+    { grass: 10 }, { grass: 20 }, { wood: 10 }, { wood: 20 }, { mushroom: 10 }, { mushroom: 20 },
+    { cactus: 10 }, { cactus: 20 }, { ice: 10 }, { ice: 20 }, { ice: 40 },
+  ],
+  // Animals on display become more valuable over time (real play time): +growth per
+  // minute, up to maxValueMult × their base value.
+  valueGrowthPerMin: 0.2,
+  maxValueMult: 3,
+};
+
+// One-off perks bought at the Garage.
+const PERKS = {
+  campRefill: {
+    name: 'Camp Supply Depot', icon: '⛺',
+    desc: 'Refill fuel and nets whenever you drive back into base camp',
+    cost: { money: 120, res: { grass: 25 } },
+  },
 };
 
 // Auto-aim: cone half-angle in degrees for a given Auto-Aim Turret level; auto-fire from AUTO_FIRE_LEVEL.

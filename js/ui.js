@@ -93,6 +93,11 @@ const UI = (() => {
           <div><small>Reload</small><b>${st.reload.toFixed(2)}s</b></div>
         </div>`;
       html += tierCard();
+      for (const [k, perk] of Object.entries(PERKS)) {
+        const owned = s.perks[k];
+        html += `<div class="card upgrade perk"><div class="up-head"><span class="em">${perk.icon}</span><div class="up-info"><b>${perk.name}</b> <span class="muted small">perk</span><small>${perk.desc}</small></div></div>
+          ${owned ? '<span class="maxed">OWNED</span>' : btn('Buy', 'perk', { key: k }, perk.cost)}</div>`;
+      }
       for (const [k, u] of Object.entries(UPGRADES)) {
         const lvl = s.upgrades[k], cap = upgradeCap(k, s.tier);
         let action;
@@ -113,6 +118,7 @@ const UI = (() => {
     }, (action, d) => {
       if (action === 'upgrade') Game.buyUpgrade(d.key);
       if (action === 'upgrade5') for (let i = 0; i < 5; i++) Game.buyUpgrade(d.key);
+      if (action === 'perk') Game.buyPerk(d.key);
     });
   }
 
@@ -135,11 +141,11 @@ const UI = (() => {
   function landCard() {
     const cost = Game.landCost();
     if (cost === undefined) return `<div class="card"><h3>🗺️ Land</h3><p class="muted">You own all the land there is!</p></div>`;
-    return `<div class="card"><h3>🗺️ Land</h3><p>You own ${Game.ownedPlots()} of ${Game.s.plots.length} plots. To buy another, walk up to a 🪧 for-sale sign. The next plot costs <b>${fmtMoney(cost)}</b>, and each one after that costs more.</p></div>`;
+    return `<div class="card"><h3>🗺️ Land</h3><p>You own ${Game.ownedPlots()} of ${Game.s.plots.length} plots. To buy another, walk up to a 🪧 for-sale sign. The next plot costs <b>${costLabel(cost)}</b>, and each one after that costs more (and needs resources from further regions).</p></div>`;
   }
 
   function openLand(plotIdx) {
-    open(() => `<h2>🪧 Plot for sale</h2>${money()}<p>Buy this plot to build another enclosure on it. Each plot you buy makes the next one more expensive.</p>${btn('Buy this plot', 'buy', {}, Game.landCost(), 'wide')}`, (action) => {
+    open(() => `<h2>🪧 Plot for sale</h2>${money()}<p>Buy this plot to build another enclosure on it. Plots cost money plus resources gathered on safari, and each one costs more than the last.</p>${btn('Buy this plot', 'buy', {}, Game.landCost(), 'wide')}`, (action) => {
       if (action === 'buy' && Game.buyPlot(plotIdx)) close();
     });
   }
@@ -206,7 +212,9 @@ const UI = (() => {
       for (const a of enc.animals) {
         const d = SPECIES[a.sp];
         const onlyOne = Game.allAnimals().filter((x) => x.sp === a.sp).length === 1;
-        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'}</small></span>${btn(`Sell ${fmtMoney(d.value)}`, 'sell', { id: a.id }, null, 'small')}</li>`;
+        const mult = Game.valueMult(a);
+        const growth = mult >= ECON.maxValueMult ? `💰 ×${mult.toFixed(1)} (max value)` : `💰 ×${mult.toFixed(2)} and rising`;
+        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'} · ${growth}</small></span>${btn(`Sell ${fmtMoney(Game.animalValue(a))}`, 'sell', { id: a.id }, null, 'small')}</li>`;
       }
       return html + `</ul>`;
     }, (action, d) => {

@@ -80,6 +80,7 @@ const App = {
   loop(t) {
     const dt = Math.min(0.05, (t - this.last) / 1000 || 0);
     this.last = t;
+    Game.tick(dt);
     if (this.scene === 'safari') {
       Safari.update(dt, Input);
       Safari.render();

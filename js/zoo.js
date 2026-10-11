@@ -109,7 +109,7 @@ const Zoo = (() => {
         return s.holding.length ? `E: Unload animals (${s.holding.length} waiting)` : 'The truck is empty';
       case 'plot': {
         const i = tg.idx, enc = s.plots[i].enclosure;
-        if (!Game.isPlotUnlocked(i)) return `E: Buy this plot (${fmtMoney(Game.landCost())})`;
+        if (!Game.isPlotUnlocked(i)) return `E: Buy this plot (${costLabel(Game.landCost())})`;
         if (!enc) return carry ? 'Build an enclosure here first (E)' : 'E: Build an enclosure';
         const b = BIOMES[enc.biome];
         if (carry) {
@@ -346,7 +346,7 @@ const Zoo = (() => {
       ctx.textAlign = 'center';
       ctx.fillText('FOR SALE', p.x + p.w / 2, p.y + p.h / 2 + 30);
       ctx.fillStyle = '#ffe680';
-      ctx.fillText(fmtMoney(Game.landCost()), p.x + p.w / 2, p.y + p.h / 2 + 50);
+      ctx.fillText(costLabel(Game.landCost()), p.x + p.w / 2, p.y + p.h / 2 + 50);
     } else if (!enc) {
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.fillRect(p.x, p.y, p.w, p.h);

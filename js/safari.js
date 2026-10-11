@@ -677,7 +677,7 @@ const Safari = (() => {
     S.atBase = atBase && canDrive;
     // Base camp refills fuel and nets (quickly, but not instantly).
     S.refilling = false;
-    if (S.atBase) {
+    if (S.atBase && Game.s.perks.campRefill) {
       if (S.fuel < st.fuelMax) {
         S.fuel = Math.min(st.fuelMax, S.fuel + st.fuelMax * 0.5 * dt);
         S.refilling = true;
@@ -1046,7 +1046,8 @@ const Safari = (() => {
       const how = TouchControls.enabled ? 'Tap 🏁' : 'Press E';
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
-      banner(S.refilling ? '⛽ Refilling fuel and nets...' : '✅ Fuel and nets are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
+      if (!Game.s.perks.campRefill) banner('Tip: buy the ⛺ Camp Supply Depot at the Garage to refill fuel and nets here', H - 100, '#fff', 13);
+      else banner(S.refilling ? '⛽ Refilling fuel and nets...' : '✅ Fuel and nets are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Space: fire  •  F: auto-fire on/off' : 'Space: fire net from the front';
       if (TouchControls.enabled) banner(`Drag on the left to drive  •  Hold 🕸️ to fire${S.stats.autoFire ? '  •  AUTO: auto-fire on/off' : ''}`, H - 30, '#fff', 13);

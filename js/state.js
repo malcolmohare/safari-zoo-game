@@ -1,7 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v7';
+const SAVE_KEY = 'safari-zoo-save-v8';
 
 function newGameState() {
   const plots = [];
@@ -16,6 +16,7 @@ function newGameState() {
     plots,
     upgrades,
     tier: 1,          // highest upgrade tier unlocked (never goes back down)
+    perks: {},        // perk key -> true once bought
     resources: Object.fromEntries(Object.keys(RESOURCES).map((k) => [k, 0])),
     nextId: 1,
     discovered: {},   // species key -> true once caught
@@ -61,7 +62,31 @@ const Game = {
   isPlotUnlocked(i) { return this.s.plots[i].owned; },
   ownedPlots() { return this.s.plots.filter((p) => p.owned).length; },
   // Price of the next plot (undefined once you own them all).
-  landCost() { return ECON.landCosts[this.ownedPlots() - 1]; },
+  landCost() {
+    const n = this.ownedPlots() - 1;
+    if (ECON.landCosts[n] === undefined) return undefined;
+    return { money: ECON.landCosts[n], res: ECON.landResCosts[n] };
+  },
+
+  // ---- Animal value ----
+  // Sale value: grows the longer the animal has been on display in an enclosure.
+  valueMult(a) { return Math.min(ECON.maxValueMult, 1 + ECON.valueGrowthPerMin * (a.zooTime || 0) / 60); },
+  animalValue(a) { return Math.round(SPECIES[a.sp].value * this.valueMult(a)); },
+
+  // Called every frame: animals in enclosures age (only while the game is running).
+  tick(dt) {
+    for (const a of this.allAnimals()) a.zooTime = (a.zooTime || 0) + dt;
+    this._saveT = (this._saveT || 0) + dt;
+    if (this._saveT > 10) { this._saveT = 0; this.save(); }
+  },
+
+  buyPerk(key) {
+    if (this.s.perks[key]) return false;
+    if (!this.spend(PERKS[key].cost)) return false;
+    this.s.perks[key] = true;
+    this.save();
+    return true;
+  },
 
   allAnimals() {
     const out = [];
@@ -186,9 +211,10 @@ const Game = {
     const i = enc.animals.findIndex((a) => a.id === animalId);
     if (i < 0) return false;
     const a = enc.animals[i];
+    const value = this.animalValue(a);
     enc.animals.splice(i, 1);
-    this.s.money += SPECIES[a.sp].value;
-    this.s.totalEarned += SPECIES[a.sp].value;
+    this.s.money += value;
+    this.s.totalEarned += value;
     Sfx.cash();
     this.save();
     return true;
@@ -216,8 +242,9 @@ const Game = {
     const i = this.s.holding.findIndex((a) => a.id === id);
     if (i < 0) return false;
     const a = this.s.holding.splice(i, 1)[0];
-    this.s.money += SPECIES[a.sp].value;
-    this.s.totalEarned += SPECIES[a.sp].value;
+    const value = this.animalValue(a);
+    this.s.money += value;
+    this.s.totalEarned += value;
     Sfx.cash();
     this.save();
     return true;
