@@ -148,3 +148,11 @@ body.touch canvas { touch-action: none; }
 .lvlbar { position: relative; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; margin: 4px 0 3px; }
 .lvlbar .fill { height: 100%; background: var(--accent); border-radius: 4px; }
 .lvlbar .cap { position: absolute; top: -3px; width: 2px; height: 14px; background: #fff; opacity: 0.7; }
+
+.cost .short { color: #b3261e; }
+.btn.cant .cost .short { color: #ffb4a8; }
+#stat-res span { margin: 0 2px; white-space: nowrap; }
+
+.btn .cost { white-space: nowrap; }
+.up-btns { flex-shrink: 0; }
+.up-btns .btn { justify-content: space-between; }

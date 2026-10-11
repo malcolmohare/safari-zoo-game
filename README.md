@@ -33,6 +33,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 | Fire a net | Space (hold it down to keep firing). Nets fire straight out of the front of the jeep. |
 | Pick up a netted animal | Drive into it before its timer ring runs out |
 | Pick up a missed net | Drive over it |
+| Gather a resource | Drive over a glowing 🌾 🪵 🍄 🌵 🧊 |
 | Go home | Drive back to base camp and press E |
 | Auto-fire on/off | F (once you have Auto-Aim Turret level 3) |
 | Pause | Esc (press Q while paused to call a tow truck) |
@@ -57,6 +58,7 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 - **Fuel:** this is your time limit. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
 - **Money:** you only earn money by **selling animals** (from the truck or from an enclosure). Values climb steeply with distance: savanna animals sell for $10–45, wetlands $40–145, jungle $150–470, desert $500–1,300 and tundra $1,500–5,770.
 - **Collection & tiers:** the number of different species on display in your enclosures sets your tier (5, 10, 16 and 22 species for tiers 2–5). Each tier gives a permit to drive into the next region (a ranger fence blocks it until then) and unlocks more levels of every upgrade. Tiers stay unlocked even if you sell animals later. Keep one of each species for the collection and sell the duplicates.
+- **Resources:** each region has its own resource to gather by driving over the glowing nodes: 🌾 grass (Savanna), 🪵 wood (Wetlands), 🍄 mushrooms (Jungle), 🌵 cactus (Desert) and 🧊 ice (Tundra). Upgrade levels cost money plus their tier's resource (1–4 units per level), and building or expanding an enclosure costs money plus its region's resource.
 - **Upgrades:** every upgrade has many small levels (up to 50) spread across the five tiers, e.g. the Fuel Tank is 50 levels of +1.5s. Each tier's levels are priced to take roughly 10–15 minutes of catching and selling that region's animals.
 
 ## Code layout

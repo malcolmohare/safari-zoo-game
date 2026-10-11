@@ -13,10 +13,10 @@ const Safari = (() => {
 
   // Obstacles and decoration per region: [emojis, count, collision radius, draw size]
   const REGION_FEATURES = {
-    savanna:  { ponds: 5,  ice: 0,  obstacles: [[['🌳'], 60, 16, 52], [['🪨'], 30, 18, 36]], decor: ['🌾', '🌾', '🌼'] },
-    wetlands: { ponds: 26, ice: 0,  obstacles: [[['🌳'], 45, 16, 52], [['🪨'], 15, 18, 34]], decor: ['🌾', '🪷', '🌿', '🌾'] },
-    jungle:   { ponds: 3,  ice: 0,  obstacles: [[['🌴', '🌳', '🌴'], 300, 16, 56], [['🪨'], 20, 18, 36]], decor: ['🌿', '🍄', '🌺'] },
-    desert:   { ponds: 2,  ice: 0,  obstacles: [[['🌵'], 90, 13, 44], [['🪨'], 45, 18, 38]], decor: ['🦴', '🐚', '🌾'] },
+    savanna:  { ponds: 5,  ice: 0,  obstacles: [[['🌳'], 60, 16, 52], [['🪨'], 30, 18, 36]], decor: ['🌼', '🌱', '🌼'] },
+    wetlands: { ponds: 26, ice: 0,  obstacles: [[['🌳'], 45, 16, 52], [['🪨'], 15, 18, 34]], decor: ['🪷', '🌿', '🌱'] },
+    jungle:   { ponds: 3,  ice: 0,  obstacles: [[['🌴', '🌳', '🌴'], 300, 16, 56], [['🪨'], 20, 18, 36]], decor: ['🌿', '🌺', '☘️'] },
+    desert:   { ponds: 2,  ice: 0,  obstacles: [[['🪨'], 80, 18, 38], [['🌴'], 25, 16, 52]], decor: ['🦴', '🐚'] },
     tundra:   { ponds: 0,  ice: 10, obstacles: [[['🌲'], 110, 15, 50], [['🪨'], 30, 18, 36]], decor: ['❄️', '🌨️'] },
   };
 
@@ -99,6 +99,19 @@ const Safari = (() => {
       w.decor.push({ x, y, emoji: opts[randInt(0, opts.length - 1)], size: rand(14, 22) });
     }
 
+    // Resource nodes to gather (one resource type per region).
+    w.resources = [];
+    for (const b of REGION_ORDER) {
+      let placed = 0;
+      for (let tries = 0; placed < ECON.resourceNodesPerRegion && tries < ECON.resourceNodesPerRegion * 4; tries++) {
+        const p = randPointIn(b, 350);
+        if (!p || inCircles(w.ponds, p.x, p.y, 20)) continue;
+        if (nearbyObstaclesIn(w, p.x, p.y).some((o) => dist(o.x, o.y, p.x, p.y) < o.r + 30)) continue;
+        w.resources.push({ x: p.x, y: p.y, res: BIOMES[b].resource, phase: rand(0, 6) });
+        placed++;
+      }
+    }
+
     w.terrain = renderTerrain(w);
   }
 
@@ -136,6 +149,15 @@ const Safari = (() => {
     g.fillStyle = '#a88a5a';
     g.beginPath(); g.arc(BASE.x * s, BASE.y * s, BASE.r * s, 0, Math.PI * 2); g.fill();
     return c;
+  }
+
+  function nearbyObstaclesIn(w, x, y) {
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL), out = [];
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const arr = w.grid.get((cx + dx) + ',' + (cy + dy));
+      if (arr) out.push(...arr);
+    }
+    return out;
   }
 
   function nearbyObstacles(x, y) {
@@ -383,6 +405,7 @@ const Safari = (() => {
       leftBase: false, ended: false, outOfFuelT: -1, paused: false, fenceWarnT: 0,
       shownPickupTip: false,
       netsLeft: stats.nets, groundNets: [], netWarnT: 0,
+      gathered: Object.fromEntries(Object.keys(RESOURCES).map((k) => [k, 0])),
       region: 0, regionsVisited: new Set(['savanna']),
     };
     genWorld();
@@ -398,7 +421,7 @@ const Safari = (() => {
   function finish(towed) {
     if (S.ended) return;
     S.ended = true;
-    onEnd(S.cargo.slice(), towed, [...S.regionsVisited], S.t);
+    onEnd(S.cargo.slice(), towed, [...S.regionsVisited], { ...S.gathered });
   }
 
   // ---------------- Update ----------------
@@ -599,6 +622,17 @@ const Safari = (() => {
     }
     S.nets = S.nets.filter((n) => !n.dead);
 
+    // Gather resources by driving over them.
+    for (const r of S.world.resources) {
+      if (!r.taken && dist(r.x, r.y, j.x, j.y) < JEEP_R + 20) {
+        r.taken = true;
+        S.gathered[r.res] += ECON.resourcePerNode;
+        floatText(r.x, r.y - 20, `+${ECON.resourcePerNode} ${RESOURCES[r.res].emoji}`, '#ffe680', 16);
+        burst(r.x, r.y, '#ffe680', 8);
+        Sfx.tone(660, 0.08, 'triangle', 0.05); Sfx.tone(990, 0.1, 'triangle', 0.05, 0, 0.06);
+      }
+    }
+
     // Pick up missed nets by driving over them.
     for (const g of S.groundNets) {
       if (dist(g.x, g.y, j.x, j.y) < JEEP_R + 18) {
@@ -783,6 +817,16 @@ const Safari = (() => {
       if (a.state === 'charge') drawEmoji(ctx, '💢', a.x + def.size * 0.4, a.y - def.size * 0.6, 16);
     }
 
+    // Resource nodes (gold ring so they stand out from scenery)
+    for (const r of S.world.resources) {
+      if (r.taken || !vis(r.x, r.y)) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(S.t * 4 + r.phase);
+      ctx.strokeStyle = `rgba(255,214,90,${0.5 + 0.4 * pulse})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(r.x, r.y, 20 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+      drawEmoji(ctx, RESOURCES[r.res].emoji, r.x, r.y - 2 - pulse * 2, 28);
+    }
+
     // Missed nets lying on the ground
     for (const g of S.groundNets) if (vis(g.x, g.y)) drawNet(g.x, g.y, 10, g.rot, 0.75);
 
@@ -913,7 +957,7 @@ const Safari = (() => {
 
     // Top-left: fuel + cargo
     const cargoW = Math.max(240, st.cargoMax * 30 + 34);
-    panel(12, 12, cargoW, st.autoFire ? 164 : 142);
+    panel(12, 12, cargoW, st.autoFire ? 186 : 164);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
     const reg = BIOMES[REGION_ORDER[S.region]];
@@ -954,6 +998,9 @@ const Safari = (() => {
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.fillStyle = '#f2c94c';
     ctx.fillText(`💰 Cargo worth: ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, 24, st.autoFire ? 160 : 138);
+    const got = Object.entries(S.gathered).filter(([, v]) => v > 0).map(([k, v]) => `${RESOURCES[k].emoji} ${v}`).join('  ');
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`Gathered: ${got || 'nothing yet'}`, 24, st.autoFire ? 182 : 160);
 
     // Minimap (top-right)
     const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;

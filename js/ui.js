@@ -52,15 +52,30 @@ const UI = (() => {
     const next = Game.nextTierInfo();
     $('stat-tier').textContent = next ? `${s.tier} (next: ${next.need})` : `${s.tier} (max)`;
     $('stat-truck').textContent = s.holding.length + (s.carrying ? 1 : 0);
+    // Resources you've found so far (hidden until you've visited their region or own some).
+    $('stat-res').innerHTML = Object.entries(RESOURCES)
+      .filter(([k, r]) => s.resources[k] > 0 || s.regionsVisited[r.biome])
+      .map(([k, r]) => `<span title="${r.name}">${r.emoji} ${s.resources[k]}</span>`).join(' ');
     $('btn-mute').textContent = Sfx.muted ? '🔇' : '🔊';
   }
 
   // ---- Small HTML helpers ----
+  // cost: null, a money amount, or { money, res: { resourceKey: amount } }
   const btn = (label, action, data = {}, cost = null, extraClass = '') => {
     const attrs = Object.entries(data).map(([k, v]) => `data-${k}="${v}"`).join(' ');
-    const afford = cost === null || Game.s.money >= cost;
-    return `<button class="btn ${extraClass} ${afford ? '' : 'cant'}" data-action="${action}" ${attrs} ${afford ? '' : 'disabled'}>${label}${cost !== null ? ` <span class="cost">${fmtMoney(cost)}</span>` : ''}</button>`;
+    const afford = cost === null || Game.canAfford(cost);
+    return `<button class="btn ${extraClass} ${afford ? '' : 'cant'}" data-action="${action}" ${attrs} ${afford ? '' : 'disabled'}>${label}${cost !== null ? ` <span class="cost">${costText(cost)}</span>` : ''}</button>`;
   };
+  function costText(cost) {
+    if (typeof cost === 'number') return fmtMoney(cost);
+    const parts = [];
+    if (cost.money) parts.push(fmtMoney(cost.money));
+    for (const [k, v] of Object.entries(cost.res || {})) {
+      const short = Game.s.resources[k] < v;
+      parts.push(`<span class="${short ? 'short' : ''}">${v}${RESOURCES[k].emoji}</span>`);
+    }
+    return parts.join(' · ');
+  }
   const money = () => `<p class="wallet">💰 ${fmtMoney(Game.s.money)}</p>`;
 
   // ---- Menus ----
@@ -84,9 +99,9 @@ const UI = (() => {
         if (lvl >= u.levels) action = '<span class="maxed">MAX</span>';
         else if (lvl >= cap) action = `<span class="locked">🔒 Tier ${s.tier + 1}<br>for more</span>`;
         else {
-          const cost = upgradeCost(k, lvl);
-          let cost5 = 0;
-          for (let l = lvl; l < lvl + 5; l++) cost5 += upgradeCost(k, l);
+          const cost = upgradeFullCost(k, lvl);
+          let cost5 = { money: 0, res: {} };
+          for (let l = lvl; l < lvl + 5; l++) cost5 = addCosts(cost5, upgradeFullCost(k, l));
           action = `<div class="up-btns">${btn('+1', 'upgrade', { key: k }, cost)}${cap - lvl >= 5 ? btn('+5', 'upgrade5', { key: k }, cost5, 'small') : ''}</div>`;
         }
         html += `<div class="card upgrade"><div class="up-head"><span class="em">${u.icon}</span><div class="up-info">
@@ -171,7 +186,7 @@ const UI = (() => {
       let html = `<h2>🏗️ Build an enclosure</h2>${money()}<p>Animals can only live in an enclosure that matches their home region.</p>`;
       for (const k of REGION_ORDER) {
         const b = BIOMES[k];
-        html += btn(`${b.icon} ${b.name} enclosure`, 'build', { biome: k }, b.buildCost, 'wide');
+        html += btn(`${b.icon} ${b.name} enclosure`, 'build', { biome: k }, Game.buildCost(k), 'wide');
       }
       return html;
     }, (action, d) => {
@@ -254,7 +269,8 @@ const UI = (() => {
         <li>On safari, drag on the left side of the screen to drive and hold <b>🕸️</b> to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`
           : `<li>Walk your zookeeper (WASD / arrows) to the <b>🚙 jeep</b> and press <b>E</b> to go on safari.</li>
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
-        <li>Drive into netted animals to load them, then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
+        <li>Drive into netted animals to load them, and drive over glowing resources (🌾 grass in the savanna) to gather them. Then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
+        <li>Upgrades and enclosures cost money <b>and</b> resources: grass for the first tier, then wood, mushrooms, cactus and ice from each new region.</li>
         <li>Back home, your catch waits in the <b>🚚 truck</b>. <b>Sell</b> animals there for money; that's how you earn.</li>
         <li>Carry one of each new species to an enclosure matching its home region. The more different species on display, the higher your <b>tier</b>. Each tier unlocks more levels of every upgrade at the <b>🔧 Garage</b>, and a permit to explore the next region.</li>
       </ol>
@@ -278,6 +294,7 @@ const UI = (() => {
       ${r.newRegions.length ? `<p>🗺️ New region${r.newRegions.length > 1 ? 's' : ''} explored: ${r.newRegions.map((b) => `<span class="chip">${BIOMES[b].icon} ${BIOMES[b].name}</span>`).join(' ')}</p>` : ''}
       <h3>🚙 Safari haul</h3>
       ${r.caught.length ? `<p>${chips(r.caught)}</p><p>Worth <b class="pos">${fmtMoney(r.value)}</b> if you sell them all. They're waiting in the 🚚 truck.</p>` : '<p class="muted">You came back empty-handed this time.</p>'}
+      ${Object.values(r.gathered).some((v) => v > 0) ? `<h3>🧺 Resources gathered</h3><p>${Object.entries(r.gathered).filter(([, v]) => v > 0).map(([k, v]) => `<span class="chip">${RESOURCES[k].emoji} ${v} ${RESOURCES[k].name}</span>`).join(' ')}</p>` : ''}
       ${r.newSpecies.length ? `<p>📖 New species: ${chips(r.newSpecies)}<br><span class="muted small">Put one of each in an enclosure to grow your collection.</span></p>` : ''}
       ${btn('Back to the zoo', 'ok', {}, null, 'big')}`, () => close(), { closeOnE: true });
   }

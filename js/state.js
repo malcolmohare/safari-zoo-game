@@ -1,7 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v6';
+const SAVE_KEY = 'safari-zoo-save-v7';
 
 function newGameState() {
   const plots = [];
@@ -16,6 +16,7 @@ function newGameState() {
     plots,
     upgrades,
     tier: 1,          // highest upgrade tier unlocked (never goes back down)
+    resources: Object.fromEntries(Object.keys(RESOURCES).map((k) => [k, 0])),
     nextId: 1,
     discovered: {},   // species key -> true once caught
     regionsVisited: { savanna: true },
@@ -40,6 +41,7 @@ const Game = {
         const fresh = newGameState();
         this.s = Object.assign(fresh, loaded);
         this.s.upgrades = Object.assign(fresh.upgrades, loaded.upgrades);
+        this.s.resources = Object.assign(fresh.resources, loaded.resources);
         return;
       }
     } catch (e) { /* storage unavailable or corrupt: start fresh */ }
@@ -115,17 +117,30 @@ const Game = {
   },
 
   // ---- Actions (return true on success) ----
-  spend(amount) {
-    if (this.s.money < amount) { Sfx.error(); return false; }
-    this.s.money -= amount;
+  // A cost is either a number (money) or { money, res: { resourceKey: amount } }.
+  canAfford(cost) {
+    if (typeof cost === 'number') return this.s.money >= cost;
+    if (this.s.money < (cost.money || 0)) return false;
+    return Object.entries(cost.res || {}).every(([k, v]) => this.s.resources[k] >= v);
+  },
+
+  spend(cost) {
+    if (!this.canAfford(cost)) { Sfx.error(); return false; }
+    if (typeof cost === 'number') this.s.money -= cost;
+    else {
+      this.s.money -= cost.money || 0;
+      for (const [k, v] of Object.entries(cost.res || {})) this.s.resources[k] -= v;
+    }
     Sfx.cash();
     return true;
   },
 
+  buildCost(biome) { return { money: BIOMES[biome].buildCost, res: { [BIOMES[biome].resource]: ECON.enclosureResource } }; },
+
   buyUpgrade(key) {
     const lvl = this.s.upgrades[key];
     if (lvl >= UPGRADES[key].levels || upgradeTier(key, lvl) > this.s.tier) return false;
-    if (!this.spend(upgradeCost(key, lvl))) return false;
+    if (!this.spend(upgradeFullCost(key, lvl))) return false;
     this.s.upgrades[key]++;
     this.save();
     return true;
@@ -143,13 +158,18 @@ const Game = {
   buildEnclosure(plotIdx, biome) {
     const p = this.s.plots[plotIdx];
     if (p.enclosure || !this.isPlotUnlocked(plotIdx)) return false;
-    if (!this.spend(BIOMES[biome].buildCost)) return false;
+    if (!this.spend(this.buildCost(biome))) return false;
     p.enclosure = { biome, capacity: ECON.startCapacity, animals: [] };
     this.save();
     return true;
   },
 
-  expandCost(enc) { return Math.max(10, Math.round(BIOMES[enc.biome].buildCost * ECON.expandCostFactor / 5) * 5); },
+  expandCost(enc) {
+    return {
+      money: Math.max(10, Math.round(BIOMES[enc.biome].buildCost * ECON.expandCostFactor / 5) * 5),
+      res: { [BIOMES[enc.biome].resource]: ECON.expandResource },
+    };
+  },
 
   expandEnclosure(plotIdx) {
     const enc = this.s.plots[plotIdx].enclosure;
@@ -218,8 +238,9 @@ const Game = {
   },
 
   // Called when a safari ends: the catch goes into the truck to be sold or exhibited.
-  endTrip(cargo, towed, regionsVisited) {
+  endTrip(cargo, towed, regionsVisited, gathered) {
     const s = this.s;
+    for (const [k, v] of Object.entries(gathered)) s.resources[k] += v;
     const towFee = towed ? Math.min(s.money, ECON.towFee) : 0;
     s.money -= towFee;
 
@@ -233,7 +254,7 @@ const Game = {
     for (const r of regionsVisited) s.regionsVisited[r] = true;
 
     const value = cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0);
-    const report = { day: s.day, caught: cargo, newSpecies, newRegions, towed, towFee, value };
+    const report = { day: s.day, caught: cargo, newSpecies, newRegions, towed, towFee, value, gathered };
     s.lastReport = report;
     s.day++;
     this.save();
