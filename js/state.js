@@ -1,7 +1,7 @@
 // Persistent game state, save/load, and the zoo economy.
 
 // Bump the version when balance changes enough that old saves would be misleading.
-const SAVE_KEY = 'safari-zoo-save-v4';
+const SAVE_KEY = 'safari-zoo-save-v5';
 
 function newGameState() {
   const plots = [];
@@ -9,15 +9,13 @@ function newGameState() {
   plots[0].enclosure = { biome: 'savanna', capacity: ECON.startCapacity, animals: [] };
   const upgrades = {};
   for (const k of Object.keys(UPGRADES)) upgrades[k] = 0;
-  const amenities = {};
-  for (const k of Object.keys(AMENITIES)) amenities[k] = 0;
   return {
     version: 1,
     money: ECON.startMoney,
     day: 1,
     plots,
     upgrades,
-    amenities,
+    tier: 1,          // highest upgrade tier unlocked (never goes back down)
     nextId: 1,
     discovered: {},   // species key -> true once caught
     regionsVisited: { savanna: true },
@@ -42,7 +40,6 @@ const Game = {
         const fresh = newGameState();
         this.s = Object.assign(fresh, loaded);
         this.s.upgrades = Object.assign(fresh.upgrades, loaded.upgrades);
-        this.s.amenities = Object.assign(fresh.amenities, loaded.amenities);
         return;
       }
     } catch (e) { /* storage unavailable or corrupt: start fresh */ }
@@ -70,32 +67,31 @@ const Game = {
     return out;
   },
 
-  appeal() {
-    let base = 0;
-    const uniq = new Set();
-    for (const a of this.allAnimals()) { base += SPECIES[a.sp].appeal; uniq.add(a.sp); }
-    const variety = 1 + ECON.varietyBonus * Math.max(0, uniq.size - 1);
-    return { base, variety, unique: uniq.size, total: Math.round(base * variety) };
+  // ---- Collection & tiers ----
+  // Species currently on display in an enclosure.
+  exhibitedSpecies() {
+    return new Set(this.allAnimals().map((a) => a.sp));
   },
 
-  visitorMultiplier() { return 1 + 0.2 * this.s.amenities.marketing; },
-
-  expectedVisitors() {
-    const ap = this.appeal().total;
-    if (ap === 0) return 2;
-    return Math.round((ECON.baseVisitors + ap * ECON.visitorsPerAppeal) * this.visitorMultiplier());
+  // Tier your current collection qualifies for (ignores tiers already reached).
+  collectionTier() {
+    const n = this.exhibitedSpecies().size;
+    let t = 1;
+    TIERS.forEach((tier, i) => { if (n >= tier.species) t = i + 1; });
+    return t;
   },
 
-  spendPerVisitor() {
-    return {
-      ticket: ECON.ticketPrice,
-      snack: 0.5 * this.s.amenities.snack,
-      gift: 1 * this.s.amenities.gift,
-    };
+  // Raise the unlocked tier if the collection has grown. Returns the new tier, or 0.
+  checkTierUp() {
+    const t = this.collectionTier();
+    if (t > this.s.tier) { this.s.tier = t; return t; }
+    return 0;
   },
 
-  dailyUpkeep() {
-    return this.allAnimals().reduce((s, a) => s + SPECIES[a.sp].upkeep, 0);
+  nextTierInfo() {
+    const next = TIERS[this.s.tier];  // TIERS is 0-indexed, tier numbers are 1-based
+    if (!next) return null;
+    return { tier: this.s.tier + 1, need: next.species, have: this.exhibitedSpecies().size };
   },
 
   jeepStats() {
@@ -127,19 +123,9 @@ const Game = {
 
   buyUpgrade(key) {
     const lvl = this.s.upgrades[key];
-    if (lvl >= UPGRADES[key].max) return false;
+    if (lvl >= UPGRADES[key].max || upgradeTier(key, lvl) > this.s.tier) return false;
     if (!this.spend(upgradeCost(key, lvl))) return false;
     this.s.upgrades[key]++;
-    this.save();
-    return true;
-  },
-
-  buyAmenity(key) {
-    const lvl = this.s.amenities[key];
-    const a = AMENITIES[key];
-    if (lvl >= a.costs.length) return false;
-    if (!this.spend(a.costs[lvl])) return false;
-    this.s.amenities[key]++;
     this.save();
     return true;
   },
@@ -162,7 +148,7 @@ const Game = {
     return true;
   },
 
-  expandCost(enc) { return ECON.expandCostPerSlot * enc.capacity; },
+  expandCost(enc) { return Math.max(10, Math.round(BIOMES[enc.biome].buildCost * ECON.expandCostFactor / 5) * 5); },
 
   expandEnclosure(plotIdx) {
     const enc = this.s.plots[plotIdx].enclosure;
@@ -180,7 +166,8 @@ const Game = {
     if (i < 0) return false;
     const a = enc.animals[i];
     enc.animals.splice(i, 1);
-    this.s.money += SPECIES[a.sp].appeal * ECON.sellMultiplier;
+    this.s.money += SPECIES[a.sp].value;
+    this.s.totalEarned += SPECIES[a.sp].value;
     Sfx.cash();
     this.save();
     return true;
@@ -208,13 +195,14 @@ const Game = {
     const i = this.s.holding.findIndex((a) => a.id === id);
     if (i < 0) return false;
     const a = this.s.holding.splice(i, 1)[0];
-    this.s.money += SPECIES[a.sp].appeal * ECON.sellMultiplier;
+    this.s.money += SPECIES[a.sp].value;
+    this.s.totalEarned += SPECIES[a.sp].value;
     Sfx.cash();
     this.save();
     return true;
   },
 
-  // Returns null on success, or a reason string.
+  // Returns null on success, or a reason string. Check Game.checkTierUp() afterwards.
   placeCarried(plotIdx) {
     const a = this.s.carrying;
     const enc = this.s.plots[plotIdx].enclosure;
@@ -228,30 +216,11 @@ const Game = {
     return null;
   },
 
-  // Called when a safari ends. The zoo was open while you were out, so the day's
-  // income is based on the animals already in enclosures. The new catch goes into the truck.
-  // Net zoo income per second of safari time (used for the live counter on the safari HUD).
-  incomePerSecond() {
-    const per = this.spendPerVisitor();
-    const perVisitor = per.ticket + per.snack + per.gift;
-    return (this.expectedVisitors() * perVisitor - this.dailyUpkeep()) / ECON.daySeconds;
-  },
-
-  endDay(cargo, towed, regionsVisited, secondsOut) {
+  // Called when a safari ends: the catch goes into the truck to be sold or exhibited.
+  endTrip(cargo, towed, regionsVisited) {
     const s = this.s;
-    const dayFrac = secondsOut / ECON.daySeconds;
-    const visitors = Math.max(0, Math.round(this.expectedVisitors() * dayFrac * rand(0.95, 1.05)));
-    const per = this.spendPerVisitor();
-    const lines = {
-      tickets: Math.round(visitors * per.ticket),
-      snacks: Math.round(visitors * per.snack),
-      gifts: Math.round(visitors * per.gift),
-      upkeep: -Math.round(this.dailyUpkeep() * dayFrac),
-      tow: towed ? -ECON.towFee : 0,
-    };
-    const net = Object.values(lines).reduce((a, b) => a + b, 0);
-    s.money = Math.max(0, s.money + net);
-    s.totalEarned += Math.max(0, net);
+    const towFee = towed ? Math.min(s.money, ECON.towFee) : 0;
+    s.money -= towFee;
 
     const newSpecies = [];
     for (const sp of cargo) {
@@ -262,7 +231,8 @@ const Game = {
     const newRegions = regionsVisited.filter((r) => !s.regionsVisited[r]);
     for (const r of regionsVisited) s.regionsVisited[r] = true;
 
-    const report = { day: s.day, caught: cargo, newSpecies, newRegions, visitors, lines, net, towed, appeal: this.appeal().total, secondsOut: Math.round(secondsOut) };
+    const value = cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0);
+    const report = { day: s.day, caught: cargo, newSpecies, newRegions, towed, towFee, value };
     s.lastReport = report;
     s.day++;
     this.save();

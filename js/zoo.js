@@ -101,7 +101,7 @@ const Zoo = (() => {
     if (!tg) return null;
     const s = Game.s, carry = s.carrying ? SPECIES[s.carrying.sp] : null;
     switch (tg.kind) {
-      case 'office': return 'E: Office — buy land & amenities, field guide';
+      case 'office': return 'E: Office — collection, upgrade tiers & field guide';
       case 'garage': return 'E: Garage — upgrade jeep & nets';
       case 'jeep': return 'E: Go on safari!';
       case 'truck':
@@ -142,7 +142,12 @@ const Zoo = (() => {
           const name = SPECIES[s.carrying.sp].name;
           const err = Game.placeCarried(i);
           if (err) { Sfx.error(); showToast(err); }
-          else { Sfx.capture(); showToast(`The ${name} has a new home! 🎉`); }
+          else {
+            Sfx.capture();
+            const t = Game.checkTierUp();
+            if (t) { Game.save(); showToast(`🏆 Tier ${t} unlocked! New upgrades at the Garage.`); }
+            else showToast(`The ${name} has a new home! 🎉`);
+          }
         } else UI.openEnclosure(i);
         break;
       }
@@ -210,8 +215,8 @@ const Zoo = (() => {
   }
 
   function syncVisitors() {
-    const last = Game.s.lastReport ? Game.s.lastReport.visitors : 0;
-    const want = Math.min(40, Math.ceil(last / 3));
+    // A few visitors per species on display, just for atmosphere.
+    const want = Math.min(40, Game.exhibitedSpecies().size * 3);
     const people = ['🚶', '🚶‍♀️', '🧍', '👨‍👩‍👧', '🧒', '👵', '🧑‍🦽'];
     const xs = pathXs(), ys = pathYs();
     while (visitors.length < want) {

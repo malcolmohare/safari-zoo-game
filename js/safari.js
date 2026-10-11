@@ -208,7 +208,7 @@ const Safari = (() => {
           a.alive = false;
           S.cargo.push(def.key);
           S.caughtThisTrip++;
-          floatText(a.x, a.y - 30, `+${def.name}!`, '#fff36b', 20);
+          floatText(a.x, a.y - 30, `+${def.name} (${fmtMoney(def.value)})`, '#fff36b', 20);
           burst(a.x, a.y, '#ffe680', 18);
           Sfx.capture();
           if (S.cargo.length >= S.stats.cargoMax) message('Cargo full! Head back to base camp 🏕️', 3);
@@ -374,7 +374,6 @@ const Safari = (() => {
     const stats = Game.jeepStats();
     S = {
       stats,
-      incomeRate: Game.incomePerSecond(),
       jeep: { x: BASE.x, y: BASE.y - 20, angle: -Math.PI / 2, speed: 0, vx: 0, vy: 0, turret: -Math.PI / 2 },
       cam: { x: BASE.x, y: BASE.y },
       animals: [], nets: [], particles: [], floats: [],
@@ -905,7 +904,7 @@ const Safari = (() => {
     // zoo earnings ticking up while you're away
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.fillStyle = '#f2c94c';
-    ctx.fillText(`🎟️ Zoo earnings: ${S.incomeRate >= 0 ? '+' : ''}${fmtMoney(S.incomeRate * S.t)}`, 24, st.autoFire ? 160 : 138);
+    ctx.fillText(`💰 Cargo worth: ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, 24, st.autoFire ? 160 : 138);
 
     // Minimap (top-right)
     const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;

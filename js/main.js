@@ -68,7 +68,7 @@ const App = {
   },
 
   endSafari(cargo, towed, regions, seconds) {
-    const report = Game.endDay(cargo, towed, regions, seconds);
+    const report = Game.endTrip(cargo, towed, regions);
     Input.keys.clear();
     this.setScene('zoo');
     Zoo.arriveHome();

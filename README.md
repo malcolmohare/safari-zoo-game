@@ -2,7 +2,7 @@
 
 A browser game prototype: run a zoo, and drive a jeep through the wild to catch animals for it with nets.
 
-**Game loop:** go on safari → catch animals → bring them back to base camp → they move into your zoo → a day passes and visitors pay to see them → spend the money on enclosures, amenities and jeep/net upgrades → repeat.
+**Game loop:** go on safari → catch animals → bring them back to base camp → sell them for money, or put one of each new species on display in your zoo → your collection unlocks better upgrade tiers → spend the money on jeep/net upgrades, land and enclosures → reach further regions with more valuable animals → repeat.
 
 ## Play
 
@@ -50,12 +50,13 @@ Open `index.html` in a browser; there's no build step and no dependencies. Progr
 
 ## How it works
 
-- **The zoo:** walk to the 🚙 jeep to go on safari. When you come back, your catch waits in the 🚚 truck. Carry each animal (one at a time) to an enclosure that matches its home region. You start with a single plot. Walk up to a 🪧 for-sale sign to buy another (each plot costs more than the last), to an empty plot to build an enclosure, to an enclosure to expand it or sell animals, to the 🔧 Garage for jeep and net upgrades, and to the 🏢 Office for amenities, the income forecast and the field guide.
+- **The zoo:** walk to the 🚙 jeep to go on safari. When you come back, your catch waits in the 🚚 truck. Carry each animal (one at a time) to an enclosure that matches its home region. You start with a single plot. Walk up to a 🪧 for-sale sign to buy another (each plot costs more than the last), to an empty plot to build an enclosure, to an enclosure to expand it or sell animals, to the 🔧 Garage for jeep and net upgrades, and to the 🏢 Office for your collection progress, upgrade tiers and the field guide.
 - **Regions:** the wild is a long strip with five regions, each further from base camp than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals, but you need more fuel and a faster jeep to get there and back. Within a region, the rarest animals live on its far side.
 - **Auto-Aim Turret:** a Garage upgrade that makes the turret lock onto animals in a cone in front of the jeep. Each level widens the cone, and from level 3 it can fire by itself. Toggle auto-fire with F (or the AUTO button on touch screens) when you'd rather save nets; the turret keeps aiming either way.
 - **Nets:** you only carry a limited number of nets (upgrade the Net Rack for more). Missed nets land on the ground and can be picked back up. Big animals need several nets, and a partly-netted animal shakes the net off if you leave it alone. Lions, hippos, crocodiles, gorillas, tigers, scorpions, cobras, rhinos and polar bears **charge your jeep**, and every hit costs you fuel.
 - **Fuel:** this is your time limit. Crashing into trees and rocks burns extra fuel. If you run out, a tow truck brings you home for a fee.
-- **Income:** the zoo earns money only while you're out on safari, for as long as you're out: one day's worth for every 30 seconds away, which is a full starting fuel tank. The safari HUD shows it ticking up. Quick in-and-out trips earn almost nothing. Visitors depend on the total appeal of the animals in your enclosures (not the ones still in the truck), with a bonus for each different species. Each visitor pays for a ticket, plus extra if you have a snack bar or gift shop. Each animal costs food every day.
+- **Money:** you only earn money by **selling animals** (from the truck or from an enclosure). Values climb steeply with distance: savanna animals sell for $10–45, wetlands $40–145, jungle $150–470, desert $500–1,300 and tundra $1,500–5,770.
+- **Collection & upgrade tiers:** the number of different species on display in your enclosures unlocks upgrade tiers (4, 9, 15 and 22 species for tiers 2–5). Each upgrade's higher levels need a higher tier, and cost more to match the animals you can catch by then. Tiers stay unlocked even if you sell animals later. Keep one of each species for the collection and sell the duplicates.
 
 ## Code layout
 

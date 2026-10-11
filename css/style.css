@@ -137,3 +137,8 @@ body.touch canvas { touch-action: none; }
 #tbtn-auto { right: calc(130px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom));
   width: 64px; height: 40px; border-radius: 12px; font-size: 12px; font-weight: 800; }
 #tbtn-auto.on { background: rgba(80,170,70,0.75); }
+
+.locked { color: var(--muted); font-weight: 700; font-size: 13px; white-space: nowrap; }
+.progress { height: 10px; background: rgba(255,255,255,0.12); border-radius: 5px; overflow: hidden; margin: 6px 0; }
+.progress div { height: 100%; background: var(--accent); }
+.guide-sp.shown { outline: 2px solid var(--accent); border-radius: 50%; }

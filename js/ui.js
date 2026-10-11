@@ -48,8 +48,9 @@ const UI = (() => {
     const s = Game.s;
     $('stat-money').textContent = fmtMoney(s.money);
     $('stat-day').textContent = s.day;
-    $('stat-appeal').textContent = Game.appeal().total;
-    $('stat-visitors').textContent = '~' + Game.expectedVisitors();
+    $('stat-collection').textContent = `${Game.exhibitedSpecies().size}/${Object.keys(SPECIES).length}`;
+    const next = Game.nextTierInfo();
+    $('stat-tier').textContent = next ? `${s.tier} (next: ${next.need})` : `${s.tier} (max)`;
     $('stat-truck').textContent = s.holding.length + (s.carrying ? 1 : 0);
     $('btn-mute').textContent = Sfx.muted ? '🔇' : '🔊';
   }
@@ -81,10 +82,14 @@ const UI = (() => {
           <div><small>Net power</small><b>${st.netPower.toFixed(2)}</b></div>
           <div><small>Reload</small><b>${st.reload.toFixed(2)}s</b></div>
         </div>`;
+      html += tierCard();
       for (const [k, u] of Object.entries(UPGRADES)) {
         const lvl = s.upgrades[k], maxed = lvl >= u.max;
-        html += `<div class="card upgrade"><div class="up-head"><span class="em">${u.icon}</span><div><b>${u.name}</b>${pips(lvl, u.max)}<small>${u.desc}</small></div></div>
-          ${maxed ? '<span class="maxed">MAX</span>' : btn('Upgrade', 'upgrade', { key: k }, upgradeCost(k, lvl))}</div>`;
+        let action;
+        if (maxed) action = '<span class="maxed">MAX</span>';
+        else if (upgradeTier(k, lvl) > s.tier) action = `<span class="locked">🔒 Tier ${upgradeTier(k, lvl)}</span>`;
+        else action = btn('Upgrade', 'upgrade', { key: k }, upgradeCost(k, lvl));
+        html += `<div class="card upgrade"><div class="up-head"><span class="em">${u.icon}</span><div><b>${u.name}</b>${pips(lvl, u.max)}<small>${u.desc}</small></div></div>${action}</div>`;
       }
       return html;
     }, (action, d) => { if (action === 'upgrade') Game.buyUpgrade(d.key); });
@@ -102,47 +107,37 @@ const UI = (() => {
     });
   }
 
+  // Collection progress and what it unlocks.
+  function tierCard() {
+    const s = Game.s, have = Game.exhibitedSpecies().size, next = Game.nextTierInfo();
+    let html = `<div class="card"><h3>🏆 Upgrade tier ${s.tier} of ${TIERS.length}</h3>
+      <p>You have <b>${have}</b> of ${Object.keys(SPECIES).length} species on display.</p>`;
+    if (next) {
+      const prev = TIERS[s.tier - 1].species;
+      const pct = clamp((have - prev) / (next.need - prev), 0, 1) * 100;
+      html += `<div class="progress"><div style="width:${pct}%"></div></div>
+        <p class="muted small">Display <b>${next.need}</b> different species in your enclosures to unlock tier ${next.tier} upgrades.</p>`;
+    } else html += `<p class="muted small">Every tier is unlocked!</p>`;
+    return html + `</div>`;
+  }
+
   function openOffice() {
-    open(() => {
-      const s = Game.s;
-      const ap = Game.appeal();
-      const per = Game.spendPerVisitor();
-      let html = `<h2>🏢 Office</h2>${money()}
-        <div class="card"><h3>📊 Forecast <span class="muted small">per day (${ECON.daySeconds}s on safari)</span></h3>
-          <div class="row"><span>Animal appeal</span><b>${ap.base}</b></div>
-          <div class="row"><span>Variety bonus (${ap.unique} species)</span><b>×${ap.variety.toFixed(2)}</b></div>
-          <div class="row"><span>Visitors</span><b>~${Game.expectedVisitors()}</b></div>
-          <div class="row"><span>Spend per visitor</span><b>${fmtMoney(per.ticket + per.snack + per.gift)}</b></div>
-          <div class="row"><span>Animal food</span><b class="neg">-${fmtMoney(Game.dailyUpkeep())}</b></div>
-          <div class="row"><span>Earnings per second on safari</span><b>${fmtMoney(Game.incomePerSecond())}</b></div>
-          <p class="muted small">The zoo earns money while you're out on safari, for as long as you're out. Only animals in enclosures count — not ones waiting in the truck.</p>
-        </div>`;
-      html += landCard();
-      html += `<h3>🍿 Amenities</h3>`;
-      for (const [k, a] of Object.entries(AMENITIES)) {
-        const lvl = s.amenities[k], maxed = lvl >= a.costs.length;
-        html += `<div class="card upgrade"><div class="up-head"><span class="em">${a.icon}</span><div><b>${a.name}</b>${pips(lvl, a.costs.length)}<small>${a.desc}</small></div></div>
-          ${maxed ? '<span class="maxed">MAX</span>' : btn(lvl ? 'Upgrade' : 'Build', 'amenity', { key: k }, a.costs[lvl])}</div>`;
-      }
-      html += fieldGuide();
-      return html;
-    }, (action, d) => {
-      if (action === 'amenity') Game.buyAmenity(d.key);
-    });
+    open(() => `<h2>🏢 Office</h2>${money()}${tierCard()}${landCard()}${fieldGuide()}`);
   }
 
   function fieldGuide() {
-    const s = Game.s;
+    const s = Game.s, exhibited = Game.exhibitedSpecies();
     let html = `<div class="card"><h3>📖 Field guide <span class="muted">${Object.keys(s.discovered).length}/${Object.keys(SPECIES).length} species</span></h3>
-      <p class="muted small">Regions get further from base camp as you go down the list. Further regions have more valuable animals.</p>`;
+      <p class="muted small">Regions get further from base camp as you go down the list, and their animals are worth far more. Species with a gold ring are on display in your zoo.</p>`;
     REGION_ORDER.forEach((bk, k) => {
       const b = BIOMES[bk];
       const visited = s.regionsVisited[bk];
       html += `<div class="guide-region"><div class="guide-name">${visited ? `${b.icon} ${b.name}` : '❔ Unexplored'} <span class="muted small">${k === 0 ? 'around base camp' : `region ${k + 1}`}</span></div><div class="guide-row">`;
       for (const d of SPECIES_BY_BIOME[bk]) {
         const known = s.discovered[d.key];
-        const tip = known ? `${d.name} — appeal ${d.appeal}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : '???';
-        html += `<span class="guide-sp ${known ? '' : 'unknown'}" title="${tip}">${visited || known ? d.emoji : '❔'}</span>`;
+        const tip = known ? `${d.name} — sells for ${fmtMoney(d.value)}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : '???';
+        const shown = exhibited.has(d.key);
+        html += `<span class="guide-sp ${known ? '' : 'unknown'} ${shown ? 'shown' : ''}" title="${tip}">${visited || known ? d.emoji : '❔'}</span>`;
       }
       html += `</div></div>`;
     });
@@ -173,30 +168,41 @@ const UI = (() => {
       html += `<ul class="animal-list">`;
       for (const a of enc.animals) {
         const d = SPECIES[a.sp];
-        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>⭐${d.appeal} · food ${fmtMoney(d.upkeep)}/day</small></span>${btn(`Sell ${fmtMoney(d.appeal * ECON.sellMultiplier)}`, 'sell', { id: a.id }, null, 'small')}</li>`;
+        const onlyOne = Game.allAnimals().filter((x) => x.sp === a.sp).length === 1;
+        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'}</small></span>${btn(`Sell ${fmtMoney(d.value)}`, 'sell', { id: a.id }, null, 'small')}</li>`;
       }
       return html + `</ul>`;
     }, (action, d) => {
       if (action === 'expand') Game.expandEnclosure(plotIdx);
-      if (action === 'sell') Game.sellAnimal(plotIdx, Number(d.id));
+      if (action === 'sell') { Game.sellAnimal(plotIdx, Number(d.id)); }
     });
   }
 
   function openTruck() {
     open(() => {
       const s = Game.s;
-      let html = `<h2>🚚 Animal Truck</h2><p>Pick an animal to carry, then walk it to a matching enclosure. Enclosures that can take it will glow.</p><ul class="animal-list">`;
+      const exhibited = Game.exhibitedSpecies();
+      let html = `<h2>🚚 Animal Truck</h2>${money()}<p>Sell animals for money, or carry a new species to a matching enclosure to grow your collection and unlock upgrade tiers.</p><ul class="animal-list">`;
       for (const a of s.holding) {
         const d = SPECIES[a.sp], b = BIOMES[d.biome];
         const room = s.plots.some((p) => p.enclosure && p.enclosure.biome === d.biome && p.enclosure.animals.length < p.enclosure.capacity);
-        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${b.icon} ${b.name} · ⭐${d.appeal}${room ? '' : ' · <span class="neg">no space yet</span>'}</small></span>
-          ${btn('Carry', 'carry', { id: a.id }, null, 'small')} ${btn(`Sell ${fmtMoney(d.appeal * ECON.sellMultiplier)}`, 'sellh', { id: a.id }, null, 'small')}</li>`;
+        const isNew = !exhibited.has(a.sp);
+        const note = isNew ? '<span class="pos">🏆 new for your collection!</span>' : 'already on display';
+        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${b.icon} ${b.name} · ${note}${isNew && !room ? ' · <span class="neg">needs a ' + b.name + ' enclosure with space</span>' : ''}</small></span>
+          ${btn('Carry', 'carry', { id: a.id }, null, 'small')} ${btn(`Sell ${fmtMoney(d.value)}`, 'sellh', { id: a.id }, null, 'small')}</li>`;
       }
+      const dupes = s.holding.filter((a) => exhibited.has(a.sp));
+      if (dupes.length > 1) html += `</ul>${btn(`Sell all ${dupes.length} already on display`, 'selldupes', {}, null, 'wide')}<ul class="animal-list">`;
       if (!s.holding.length) html += `<li class="muted">Empty.</li>`;
       return html + `</ul>`;
     }, (action, d) => {
       if (action === 'carry' && Game.carryFromHolding(Number(d.id))) { Sfx.hit(); close(); }
       if (action === 'sellh') { Game.sellFromHolding(Number(d.id)); if (!Game.s.holding.length) close(); }
+      if (action === 'selldupes') {
+        const ex = Game.exhibitedSpecies();
+        for (const a of Game.s.holding.filter((x) => ex.has(x.sp))) Game.sellFromHolding(a.id);
+        if (!Game.s.holding.length) close();
+      }
     });
   }
 
@@ -205,8 +211,8 @@ const UI = (() => {
       const s = Game.s, st = Game.jeepStats();
       const waiting = s.holding.length + (s.carrying ? 1 : 0);
       return `<h2>🚙 Head out on safari?</h2>
-        <p>The zoo earns money <b>for as long as you're out</b> (about ${fmtMoney(Game.incomePerSecond() * ECON.daySeconds)} per ${ECON.daySeconds}s right now), from the animals that are <b>in enclosures</b> when you leave. Longer trips earn more.</p>
-        ${waiting ? `<p class="neg">⚠️ ${waiting} animal${waiting > 1 ? 's are' : ' is'} still in the truck and won't earn anything today.</p>` : ''}
+        <p>Catch animals to sell or to add to your collection. Animals from further regions are worth much more.</p>
+        ${waiting ? `<p class="muted">🚚 ${waiting} animal${waiting > 1 ? 's are' : ' is'} still waiting in the truck. They'll stay there until you sell them or put them in an enclosure.</p>` : ''}
         <div class="card stats-grid">
           <div><small>Fuel</small><b>${st.fuelMax}s</b></div><div><small>Nets</small><b>${st.nets}</b></div><div><small>Cargo</small><b>${st.cargoMax}</b></div>
         </div>
@@ -227,10 +233,10 @@ const UI = (() => {
           : `<li>Walk your zookeeper (WASD / arrows) to the <b>🚙 jeep</b> and press <b>E</b> to go on safari.</li>
         <li>Drive with WASD and press Space to fire a net straight out of the front of the jeep. You only have a few nets, but missed ones can be picked back up.</li>`}
         <li>Drive into netted animals to load them, then return to base camp and ${TouchControls.enabled ? 'tap 🏁' : 'press E'} before your fuel runs out.</li>
-        <li>Back home, your catch waits in the <b>🚚 truck</b>. Carry each animal to an enclosure that matches its home region.</li>
-        <li>While you're out on safari, visitors pay to see the animals in your enclosures — the longer you're out, the more you earn. Spend money at the <b>🔧 Garage</b> and <b>🏢 Office</b>, and walk up to 🪧 for-sale signs to buy more plots.</li>
+        <li>Back home, your catch waits in the <b>🚚 truck</b>. <b>Sell</b> animals there for money; that's how you earn.</li>
+        <li>Carry one of each new species to an enclosure matching its home region. The more different species on display, the higher your <b>upgrade tier</b>, which unlocks better jeep upgrades at the <b>🔧 Garage</b>.</li>
       </ol>
-      <p class="muted">The wild has five regions, each further north than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Further regions have more valuable animals but need a faster jeep and more fuel to reach.</p>
+      <p class="muted">The wild has five regions, each further north than the last: Savanna → Wetlands → Jungle → Desert → Tundra. Animals from further regions are worth far more, but you'll need a faster jeep and more fuel to reach them.</p>
       ${btn('Let\'s go!', 'ok', {}, null, 'big')}`, () => {
       Game.s.seenIntro = true;
       Game.save();
@@ -244,20 +250,13 @@ const UI = (() => {
       for (const sp of arr) m[sp] = (m[sp] || 0) + 1;
       return Object.entries(m).map(([sp, n]) => `<span class="chip">${SPECIES[sp].emoji} ${SPECIES[sp].name}${n > 1 ? ' ×' + n : ''}</span>`).join(' ');
     };
-    const L = r.lines;
-    const line = (label, v) => (v ? `<div class="row"><span>${label}</span><b class="${v < 0 ? 'neg' : 'pos'}">${v < 0 ? '' : '+'}${fmtMoney(v)}</b></div>` : '');
     open(() => `
-      <h2>🌅 End of Day ${r.day}</h2>
-      ${r.towed ? '<p class="neg">🚚 Your jeep had to be towed home.</p>' : ''}
+      <h2>🌅 Back from safari (day ${r.day})</h2>
+      ${r.towed ? `<p class="neg">🚚 Your jeep had to be towed home (-${fmtMoney(r.towFee)}).</p>` : ''}
       ${r.newRegions.length ? `<p>🗺️ New region${r.newRegions.length > 1 ? 's' : ''} explored: ${r.newRegions.map((b) => `<span class="chip">${BIOMES[b].icon} ${BIOMES[b].name}</span>`).join(' ')}</p>` : ''}
       <h3>🚙 Safari haul</h3>
-      ${r.caught.length ? `<p>${chips(r.caught)}</p><p class="muted">They're waiting in the 🚚 truck. Carry them to their enclosures!</p>` : '<p class="muted">You came back empty-handed this time.</p>'}
-      ${r.newSpecies.length ? `<p>📖 New in your field guide: ${chips(r.newSpecies)}</p>` : ''}
-      <h3>🎟️ While you were out</h3>
-      <p>You were out for <b>${r.secondsOut}s</b>, and <b>${r.visitors}</b> visitors came to the zoo.</p>
-      ${line('Tickets', L.tickets)}${line('Snack bar', L.snacks)}${line('Gift shop', L.gifts)}
-      ${line('Animal food', L.upkeep)}${line('Tow truck', L.tow)}
-      <div class="row total"><span>Profit</span><b class="${r.net < 0 ? 'neg' : 'pos'}">${fmtMoney(r.net)}</b></div>
+      ${r.caught.length ? `<p>${chips(r.caught)}</p><p>Worth <b class="pos">${fmtMoney(r.value)}</b> if you sell them all. They're waiting in the 🚚 truck.</p>` : '<p class="muted">You came back empty-handed this time.</p>'}
+      ${r.newSpecies.length ? `<p>📖 New species: ${chips(r.newSpecies)}<br><span class="muted small">Put one of each in an enclosure to grow your collection.</span></p>` : ''}
       ${btn('Back to the zoo', 'ok', {}, null, 'big')}`, () => close(), { closeOnE: true });
   }
 
