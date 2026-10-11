@@ -199,7 +199,7 @@ const UI = (() => {
       const enc = Game.s.plots[plotIdx].enclosure;
       const b = BIOMES[enc.biome];
       let html = `<h2>${b.icon} ${b.name} enclosure <span class="muted">${enc.animals.length}/${enc.capacity}</span></h2>${money()}`;
-      if (enc.capacity < ECON.maxCapacity) html += btn(`Expand (+${ECON.expandStep} space)`, 'expand', {}, Game.expandCost(enc), 'wide');
+      if (enc.capacity < ECON.maxCapacity) html += btn(`Expand (+${ECON.expandStep} space & new decorations)`, 'expand', {}, Game.expandCost(enc), 'wide');
       else html += `<p class="muted">Maximum size reached.</p>`;
       if (!enc.animals.length) html += `<p class="muted">No animals yet. Catch ${b.name.toLowerCase()} animals on safari and carry them here from the truck.</p>`;
       html += `<ul class="animal-list">`;

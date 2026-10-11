@@ -366,6 +366,7 @@ const Zoo = (() => {
       const deco = { savanna: ['🌳', '🌾'], wetlands: ['🪷', '🌾'], jungle: ['🌴', '🌿'], desert: ['🌵', '🪨'], tundra: ['🧊', '🌲'] }[enc.biome];
       drawEmoji(ctx, deco[0], p.x + p.w * 0.86, p.y + p.h * 0.3, 54);
       drawEmoji(ctx, deco[1], p.x + p.w * 0.1, p.y + p.h * 0.84, 32);
+      drawExpansionDecor(p, i, enc);
       if (enc.biome !== 'desert') {
         ctx.fillStyle = enc.biome === 'tundra' ? '#7cc0e6' : '#5aa9d6';
         ctx.beginPath();
@@ -409,6 +410,37 @@ const Zoo = (() => {
       ctx.strokeStyle = '#fff36b';
       ctx.lineWidth = 4;
       ctx.strokeRect(p.x - 6, p.y - 6, p.w + 12, p.h + 12);
+    }
+  }
+
+  // Each expansion adds two more decorations, themed to the enclosure's habitat.
+  const EXPANSION_DECOR = {
+    savanna:  ['🌳', '🪨', '🌼', '🪵', '🌾', '🌳', '🌼', '🪨'],
+    wetlands: ['🌿', '🪵', '🪷', '🍀', '🌾', '🌳', '🪷', '🌿'],
+    jungle:   ['🌺', '🍄', '🌴', '🎋', '🌿', '🌺', '🌴', '🍄'],
+    desert:   ['🌵', '🦴', '🪨', '🐚', '🌵', '🏺', '🪨', '🌵'],
+    tundra:   ['🌲', '⛄', '🧊', '❄️', '🌲', '🧊', '⛄', '🌲'],
+  };
+  // Spots spread around the pen, clear of the sign (top-left) and the pool.
+  const DECOR_SLOTS = [[0.55, 0.18], [0.1, 0.58], [0.9, 0.62], [0.38, 0.88], [0.68, 0.9], [0.92, 0.88], [0.42, 0.42], [0.62, 0.55]];
+  const decorSeen = new Map();   // plot index -> { level, t } for the pop-in animation
+
+  function drawExpansionDecor(p, plotIdx, enc) {
+    const level = Math.round((enc.capacity - ECON.startCapacity) / ECON.expandStep);
+    const seen = decorSeen.get(plotIdx);
+    if (!seen) decorSeen.set(plotIdx, { level, t: -99 });
+    // New decorations wait until the menu closes, so you can see them pop in.
+    else if (level > seen.level && !UI.isModalOpen()) decorSeen.set(plotIdx, { level, t, from: seen.level });
+    const anim = decorSeen.get(plotIdx);
+    const items = EXPANSION_DECOR[enc.biome];
+    for (let k = 0; k < Math.min(anim.level * 2, items.length); k++) {
+      const [sx, sy] = DECOR_SLOTS[(k + plotIdx) % DECOR_SLOTS.length];
+      const isNew = anim.from !== undefined && k >= anim.from * 2;
+      const age = t - anim.t;
+      let size = 34;
+      if (isNew && age < 0.6) size *= 0.3 + 0.7 * Math.sin(Math.min(1, age / 0.6) * Math.PI / 2) * 1.15;
+      drawEmoji(ctx, items[k], p.x + sx * p.w, p.y + sy * p.h, size);
+      if (isNew && age < 1.5) drawEmoji(ctx, '✨', p.x + sx * p.w + 14, p.y + sy * p.h - 16, 22, false, 1 - age / 1.5);
     }
   }
 
