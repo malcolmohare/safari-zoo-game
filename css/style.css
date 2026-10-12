@@ -168,3 +168,10 @@ body.touch canvas { touch-action: none; }
 .toast small { display: block; font-size: 12px; margin-top: 2px; }
 .toast .was { opacity: 0.65; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-16px) scale(0.95); } to { opacity: 1; transform: none; } }
+
+/* Animal artwork in menus */
+.animal-img { width: 1.4em; height: 1.4em; vertical-align: middle; object-fit: contain; }
+.animal-list .em .animal-img { width: 36px; height: 36px; }
+.guide-sp .animal-img { width: 30px; height: 30px; }
+.guide-sp.unknown .animal-img { filter: brightness(0) opacity(0.35); }
+.chip .animal-img { width: 20px; height: 20px; }

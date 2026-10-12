@@ -84,7 +84,7 @@ Besides standard page views and users, it sends these events: `game_open` (new v
 | `js/sprites.js` | Procedural graphics: noise, top-down trees and rocks, ground textures, shadows |
 | `js/analytics.js` | Google Analytics setup and game events |
 
-Graphics are drawn in code on a canvas, so there are no asset files: terrain, trees, rocks, water and textures are generated procedurally (`js/sprites.js`), and animals and some icons are emoji. Sounds are generated with WebAudio.
+Graphics are drawn in code on a canvas, so there are no asset files: terrain, trees, rocks, water and textures are generated procedurally (`js/sprites.js`), and some icons are emoji. Animal artwork is [Fluent Emoji 3D](https://github.com/microsoft/fluentui-emoji) by Microsoft (MIT licence, see `assets/animals/LICENSE.txt`), resized and lightly recoloured for the snow leopard and arctic fox. Sounds are generated with WebAudio.
 
 ## License
 

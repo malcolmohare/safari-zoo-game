@@ -201,7 +201,7 @@ const UI = (() => {
         const known = s.discovered[d.key];
         const tip = known ? `${d.name} — sells for ${fmtMoney(d.value)}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : '???';
         const shown = exhibited.has(d.key);
-        html += `<span class="guide-sp ${known ? '' : 'unknown'} ${shown ? 'shown' : ''}" title="${tip}">${visited || known ? d.emoji : '❔'}</span>`;
+        html += `<span class="guide-sp ${known ? '' : 'unknown'} ${shown ? 'shown' : ''}" title="${tip}">${visited || known ? animalImg(d.key) : '❔'}</span>`;
       }
       html += `</div></div>`;
     });
@@ -243,7 +243,7 @@ const UI = (() => {
         const onlyOne = Game.allAnimals().filter((x) => x.sp === a.sp).length === 1;
         const mult = Game.valueMult(a);
         const growth = mult >= g.cap - 0.001 ? `💰 ×${mult.toFixed(2)} (max for this pen)` : `💰 ×${mult.toFixed(2)} and rising`;
-        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'} · ${growth}</small></span>${btn(`Sell ${fmtMoney(Game.animalValue(a))}`, 'sell', { id: a.id }, null, 'small')}</li>`;
+        html += `<li><span class="em">${animalImg(d.key)}</span><span class="nm">${d.name}<small>${onlyOne ? '🏆 only one on display' : 'duplicate'} · ${growth}</small></span>${btn(`Sell ${fmtMoney(Game.animalValue(a))}`, 'sell', { id: a.id }, null, 'small')}</li>`;
       }
       return html + `</ul>`;
     }, (action, d) => {
@@ -266,7 +266,7 @@ const UI = (() => {
         const room = s.plots.some((p) => p.enclosure && p.enclosure.biome === d.biome && p.enclosure.animals.length < p.enclosure.capacity);
         const isNew = !exhibited.has(a.sp);
         const note = isNew ? '<span class="pos">🏆 new for your collection!</span>' : 'already on display';
-        html += `<li><span class="em">${d.emoji}</span><span class="nm">${d.name}<small>${b.icon} ${b.name} · ${note}${isNew && !room ? ' · <span class="neg">needs a ' + b.name + ' enclosure with space</span>' : ''}</small></span>
+        html += `<li><span class="em">${animalImg(d.key)}</span><span class="nm">${d.name}<small>${b.icon} ${b.name} · ${note}${isNew && !room ? ' · <span class="neg">needs a ' + b.name + ' enclosure with space</span>' : ''}</small></span>
           ${btn('Carry', 'carry', { id: a.id }, null, 'small')} ${btn(`Sell ${fmtMoney(d.value)}`, 'sellh', { id: a.id }, null, 'small')}</li>`;
       }
       const dupes = s.holding.filter((a) => exhibited.has(a.sp));
@@ -327,7 +327,7 @@ const UI = (() => {
     const chips = (arr) => {
       const m = {};
       for (const sp of arr) m[sp] = (m[sp] || 0) + 1;
-      return Object.entries(m).map(([sp, n]) => `<span class="chip">${SPECIES[sp].emoji} ${SPECIES[sp].name}${n > 1 ? ' ×' + n : ''}</span>`).join(' ');
+      return Object.entries(m).map(([sp, n]) => `<span class="chip">${animalImg(sp)} ${SPECIES[sp].name}${n > 1 ? ' ×' + n : ''}</span>`).join(' ');
     };
     open(() => `
       <h2>🌅 Back from safari (day ${r.day})</h2>

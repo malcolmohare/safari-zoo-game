@@ -35,6 +35,17 @@ function angleDiff(a, b) {
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
+// Animal artwork: Fluent Emoji 3D by Microsoft (MIT licence, see assets/animals/LICENSE.txt).
+// Whenever an animal's emoji is drawn, its image is used instead once it has loaded.
+const ASSET_VERSION = 26;
+const ANIMAL_ART = {};   // emoji -> { img, flip }
+for (const def of Object.values(SPECIES)) {
+  const img = new Image();
+  img.src = `assets/animals/${def.key}.png?v=${ASSET_VERSION}`;
+  ANIMAL_ART[def.emoji] = { img, flip: def.key === 'zebra' };   // the zebra art faces right, the rest face left
+}
+const animalImg = (key) => `<img class="animal-img" src="assets/animals/${key}.png?v=${ASSET_VERSION}" alt="">`;
+
 // Emoji are pre-rendered to offscreen canvases (much faster than fillText every frame).
 const _spriteCache = new Map();
 const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
@@ -47,6 +58,16 @@ function getSprite(emoji, size, flip) {
   const pad = Math.ceil(px * 0.25);
   c.width = c.height = px + pad * 2;
   const g = c.getContext('2d');
+  const art = ANIMAL_ART[emoji];
+  if (art) {
+    if (!(art.img.complete && art.img.naturalWidth)) return getEmojiSprite(emoji, px, flip);  // not loaded yet: don't cache the fallback
+    g.imageSmoothingQuality = 'high';
+    if (flip !== art.flip) { g.translate(c.width, 0); g.scale(-1, 1); }
+    const s = px * 1.12;
+    g.drawImage(art.img, (c.width - s) / 2, (c.height - s) / 2, s, s);
+    _spriteCache.set(key, c);
+    return c;
+  }
   g.font = `${px}px ${EMOJI_FONT}`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -55,6 +76,19 @@ function getSprite(emoji, size, flip) {
   _spriteCache.set(key, c);
   return c;
 }
+function getEmojiSprite(emoji, px, flip) {
+  const c = document.createElement('canvas');
+  const pad = Math.ceil(px * 0.25);
+  c.width = c.height = px + pad * 2;
+  const g = c.getContext('2d');
+  g.font = `${px}px ${EMOJI_FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  if (flip) { g.translate(c.width, 0); g.scale(-1, 1); }
+  g.fillText(emoji, c.width / 2, c.height / 2 + px * 0.06);
+  return c;
+}
+
 function drawEmoji(ctx, emoji, x, y, size, flip = false, alpha = 1) {
   const s = getSprite(emoji, size, flip);
   const w = s.width / DPR;
