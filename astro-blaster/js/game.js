@@ -376,7 +376,7 @@ function updateEnemies(dt) {
 // ---------------- Boss ----------------
 function spawnBoss() {
   const hp = Math.round(140 * (1 + G.loop * 0.75));
-  G.boss = { x: W + 40, y: H / 2 - 4, hp, max: hp, t: 0, attackT: 2, attack: 0, hitT: 0, state: 'enter', queue: [] };
+  G.boss = { x: W + 40, y: H / 2 - 4, hp, max: hp, t: 0, ph: 0, amp: 0, attackT: 2, attack: 0, hitT: 0, state: 'enter', queue: [] };
   G.bossState = 'fight';
   G.banner = { text: G.loop ? `MOTHERSHIP MK ${G.loop + 1}` : 'MOTHERSHIP', t: 2.5 };
 }
@@ -392,12 +392,18 @@ function updateBoss(dt) {
     return;
   }
   if (B.state === 'enter') {
-    B.x -= 40 * dt;
-    if (B.x <= 252) B.state = 'fight';
+    // glide in and ease to a stop
+    B.x -= Math.max(8, Math.min(40, (B.x - 252) * 1.2)) * dt;
+    if (B.x <= 252.5) { B.x = 252; B.state = 'fight'; }
     return;
   }
   const enraged = B.hp < B.max / 2;
-  B.y = H / 2 - 4 + Math.sin(B.t * 0.8 * (1 + L * 0.15) * (enraged ? 1.4 : 1)) * 52;
+  // Bob up and down. The phase accumulates (so speeding up never jumps), the swing eases in
+  // after the entrance, and the ship can only move so fast, so it never teleports.
+  B.ph += dt * 0.8 * (1 + L * 0.15) * (enraged ? 1.4 : 1);
+  B.amp = Math.min(52, B.amp + 26 * dt);
+  const ty = H / 2 - 4 + Math.sin(B.ph) * B.amp;
+  B.y += clamp(ty - B.y, -70 * dt, 70 * dt);
   for (const q of B.queue) { q.t -= dt; if (q.t <= 0) { q.fn(); q.done = true; } }
   B.queue = B.queue.filter((q) => !q.done);
   B.attackT -= dt;
