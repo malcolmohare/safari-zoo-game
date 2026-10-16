@@ -37,7 +37,7 @@ const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 // Animal artwork: Fluent Emoji 3D by Microsoft (MIT licence, see assets/animals/LICENSE.txt).
 // Whenever an animal's emoji is drawn, its image is used instead once it has loaded.
-const ASSET_VERSION = 26;
+const ASSET_VERSION = 27;
 const ANIMAL_ART = {};   // emoji -> { img, flip }
 for (const def of Object.values(SPECIES)) {
   const img = new Image();

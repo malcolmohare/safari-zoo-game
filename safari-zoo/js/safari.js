@@ -205,7 +205,7 @@ const Safari = (() => {
     if (!pos) return;
     // Rare animals are more likely deep in their region, common ones near its edge.
     const depth = depthInRegion(REGION_ORDER.indexOf(biome), pos.y);
-    const def = weightedPick(SPECIES_BY_BIOME[biome], (d) => d.rarity <= 3 ? d.rarity * (0.2 + 1.8 * depth) : d.rarity * (1.3 - 0.6 * depth));
+    const def = weightedPick(SPECIES_BY_BIOME[biome].filter((d) => !d.legendary), (d) => d.rarity <= 3 ? d.rarity * (0.2 + 1.8 * depth) : d.rarity * (1.3 - 0.6 * depth));
     const n = randInt(def.group[0], def.group[1]);
     for (let i = 0; i < n; i++) {
       const x = pos.x + rand(-70, 70), y = pos.y + rand(-70, 70);
@@ -219,9 +219,27 @@ const Safari = (() => {
     }
   }
 
+  // Each region has one legendary animal. It's rare, appears alone deep in its region, and is worth a fortune.
+  function spawnLegendary(biome) {
+    const def = SPECIES_BY_BIOME[biome].find((d) => d.legendary);
+    if (!def || S.animals.some((a) => a.def === def)) return;
+    const k = REGION_ORDER.indexOf(biome);
+    for (let i = 0; i < 60; i++) {
+      const p = randPointIn(biome, 900);
+      if (!p || depthInRegion(k, p.y) < 0.45 || inCircles(S.world.ponds, p.x, p.y, 30) && !def.swims) continue;
+      if (dist(p.x, p.y, S.jeep.x, S.jeep.y) < 800) continue;
+      S.animals.push({
+        def, x: p.x, y: p.y, dir: rand(0, Math.PI * 2), spd: 0,
+        state: 'wander', timer: rand(0, 3), netHits: 0, sinceHit: 99,
+        slowT: 0, tangleT: 0, angryT: 0, recoilT: 0, facing: 1, bob: rand(0, 10), alive: true,
+      });
+      return;
+    }
+  }
+
   function biomeCount(b) {
     let n = 0;
-    for (const a of S.animals) if (a.def.biome === b) n++;
+    for (const a of S.animals) if (a.def.biome === b && !a.def.legendary) n++;
     return n;
   }
 
@@ -243,7 +261,8 @@ const Safari = (() => {
           a.alive = false;
           S.cargo.push(def.key);
           S.caughtThisTrip++;
-          floatText(a.x, a.y - 30, `+${def.name} (${fmtMoney(def.value)})`, '#fff36b', 20);
+          floatText(a.x, a.y - 30, `${def.legendary ? '★ LEGENDARY! ' : '+'}${def.name} (${fmtMoney(def.value)})`, '#fff36b', def.legendary ? 24 : 20);
+          if (def.legendary) { message(`★ You caught the legendary ${def.name}! ★`, 4); burst(a.x, a.y, '#ffffff', 30); }
           burst(a.x, a.y, '#ffe680', 18);
           Sfx.capture();
           if (S.cargo.length >= S.stats.cargoMax) message('Cargo full! Head back to base camp 🏕️', 3);
@@ -428,6 +447,7 @@ const Safari = (() => {
     for (const b of REGION_ORDER) {
       let guard = 0;
       while (biomeCount(b) < POP_PER_REGION && guard++ < 50) spawnGroup(b, false);
+      if (Math.random() < 0.35) spawnLegendary(b);
     }
     S.cam.x = S.jeep.x; S.cam.y = S.jeep.y;
     resize();
@@ -679,12 +699,24 @@ const Safari = (() => {
 
     // Animals
     S.cargoWarnT -= dt;
-    for (const a of S.animals) if (a.alive) updateAnimal(a, dt);
+    for (const a of S.animals) {
+      if (!a.alive) continue;
+      updateAnimal(a, dt);
+      // Announce a legendary the first time you get close to one.
+      if (a.def.legendary && !a.announced && dist(a.x, a.y, j.x, j.y) < 520) {
+        a.announced = true;
+        message(`✨ A legendary ${a.def.name} is nearby! ✨`, 3.5);
+        [784, 988, 1175, 1568].forEach((f, i) => Sfx.tone(f, 0.18, 'triangle', 0.05, 0, i * 0.09));
+      }
+    }
     S.animals = S.animals.filter((a) => a.alive);
     S.respawnT -= dt;
     if (S.respawnT <= 0) {
       S.respawnT = 1.5;
-      for (const b of REGION_ORDER) if (biomeCount(b) < POP_PER_REGION - 3) spawnGroup(b, true);
+      for (const b of REGION_ORDER) {
+        if (biomeCount(b) < POP_PER_REGION - 3) spawnGroup(b, true);
+        if (Math.random() < 0.012) spawnLegendary(b);   // roughly once every two minutes per region
+      }
     }
 
     // Particles & floats
@@ -934,6 +966,15 @@ const Safari = (() => {
     const fly = def.flies ? 5 : 0;
     const wiggle = a.state === 'tangled' ? (Math.floor(S.t * 20) % 2 ? 1 : -1) : 0;
     const bx = X(a.x) + wiggle, by = Y(a.y + def.size * 0.3) - hop - fly;
+    if (def.legendary) {
+      // golden shimmer: a pulsing ring and orbiting sparkles
+      Pixel.ring(g, X(a.x), Y(a.y + def.size * 0.3), (size >> 1) + 2 + (Math.floor(S.t * 4) % 2), (size >> 2) + 1, '#f8d848', true);
+      for (let i = 0; i < 4; i++) {
+        const ang = S.t * 2.2 + i * Math.PI / 2, sx = bx + Math.round(Math.cos(ang) * (size * 0.6)), sy = by - (size >> 1) + Math.round(Math.sin(ang) * (size * 0.35));
+        g.fillStyle = i % 2 ? '#fff6a8' : '#ffffff';
+        g.fillRect(sx, sy - 1, 1, 3); g.fillRect(sx - 1, sy, 3, 1);
+      }
+    }
     if (s) Pixel.drawAt(g, s, bx, by + 1);
     else { g.fillStyle = '#a08060'; g.fillRect(bx - 4, by - 8, 8, 8); }
     const top = by - size;
@@ -1034,6 +1075,8 @@ const Safari = (() => {
     ctx.fillStyle = '#6a3a18'; ctx.fillRect(Math.round(mx + BASE.x * ms) - 3, Math.round(my + BASE.y * ms) - 3, 6, 6);
     ctx.fillStyle = '#f8d848';
     for (const a of S.animals) if (a.state === 'tangled') ctx.fillRect(Math.round(mx + a.x * ms) - 2, Math.round(my + a.y * ms) - 2, 4, 4);
+    // Legendaries you've spotted show as a blinking gold star
+    for (const a of S.animals) if (a.def.legendary && a.announced && Math.floor(S.t * 3) % 2) drawEmoji(ctx, '⭐', mx + a.x * ms, my + a.y * ms, 12);
     if (Math.floor(S.t * 4) % 2) { ctx.fillStyle = '#f83838'; ctx.fillRect(Math.round(mx + S.jeep.x * ms) - 3, Math.round(my + S.jeep.y * ms) - 3, 6, 6); }
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1;
     ctx.strokeRect(Math.round(mx + (S.cam.x - VW / 2) * ms) + 0.5, Math.round(my + (S.cam.y - VH / 2) * ms) + 0.5, Math.round(VW * ms), Math.round(VH * ms));

@@ -28,6 +28,7 @@ for (const [k, r] of Object.entries(RESOURCES)) BIOMES[r.biome].resource = k;
 // group = [min, max] herd size.
 // behavior: 'skittish' (runs), 'calm' (only runs when very close), 'aggressive' (charges the jeep), 'erratic' (zig-zags)
 // flies / swims: can cross ponds.
+// legendary: one per region, very rare, never in herds; spawns deep in its region and is worth a fortune.
 const SPECIES = {
   zebra:       { name: 'Zebra',        emoji: '🦓', biome: 'savanna',  appeal: 3,  hp: 1, speed: 170, flee: 230, size: 34, rarity: 10, group: [3, 5], behavior: 'skittish' },
   warthog:     { name: 'Warthog',      emoji: '🐗', biome: 'savanna',  appeal: 3,  hp: 1, speed: 160, flee: 200, size: 30, rarity: 8,  group: [1, 3], behavior: 'erratic' },
@@ -35,6 +36,9 @@ const SPECIES = {
   giraffe:     { name: 'Giraffe',      emoji: '🦒', biome: 'savanna',  appeal: 7,  hp: 2, speed: 140, flee: 210, size: 46, rarity: 5,  group: [1, 3], behavior: 'skittish' },
   elephant:    { name: 'Elephant',     emoji: '🐘', biome: 'savanna',  appeal: 11, hp: 4, speed: 90,  flee: 110, size: 52, rarity: 2,  group: [2, 3], behavior: 'calm' },
   lion:        { name: 'Lion',         emoji: '🦁', biome: 'savanna',  appeal: 13, hp: 3, speed: 215, flee: 0, aggro: 260, size: 38, rarity: 2, group: [1, 2], behavior: 'aggressive' },
+  buffalo:     { name: 'Cape Buffalo', emoji: '🐃', biome: 'savanna',  appeal: 9,  hp: 3, speed: 150, flee: 0, aggro: 220, size: 46, rarity: 4, group: [2, 4], behavior: 'aggressive' },
+  eagle:       { name: 'Martial Eagle', emoji: '🦅', biome: 'savanna', appeal: 8,  hp: 1, speed: 240, flee: 280, size: 30, rarity: 6,  group: [1, 2], behavior: 'erratic', flies: true },
+  unicorn:     { name: 'Unicorn',      emoji: '🦄', biome: 'savanna',  appeal: 60, hp: 3, speed: 290, flee: 360, size: 46, rarity: 0,  group: [1, 1], behavior: 'skittish', legendary: true },
 
   frog:        { name: 'Frog',         emoji: '🐸', biome: 'wetlands', appeal: 5,  hp: 1, speed: 130, flee: 150, size: 24, rarity: 10, group: [2, 4], behavior: 'erratic', swims: true },
   duck:        { name: 'Duck',         emoji: '🦆', biome: 'wetlands', appeal: 5,  hp: 1, speed: 190, flee: 220, size: 26, rarity: 9,  group: [3, 5], behavior: 'skittish', flies: true },
@@ -42,6 +46,9 @@ const SPECIES = {
   beaver:      { name: 'Beaver',       emoji: '🦫', biome: 'wetlands', appeal: 9,  hp: 2, speed: 110, flee: 170, size: 30, rarity: 5,  group: [1, 2], behavior: 'calm', swims: true },
   hippo:       { name: 'Hippo',        emoji: '🦛', biome: 'wetlands', appeal: 16, hp: 5, speed: 160, flee: 0, aggro: 200, size: 50, rarity: 3, group: [1, 3], behavior: 'aggressive', swims: true },
   crocodile:   { name: 'Crocodile',    emoji: '🐊', biome: 'wetlands', appeal: 18, hp: 4, speed: 200, flee: 0, aggro: 230, size: 46, rarity: 2, group: [1, 1], behavior: 'aggressive', swims: true },
+  otter:       { name: 'Otter',        emoji: '🦦', biome: 'wetlands', appeal: 7,  hp: 1, speed: 180, flee: 210, size: 28, rarity: 8,  group: [2, 3], behavior: 'erratic', swims: true },
+  swan:        { name: 'Swan',         emoji: '🦢', biome: 'wetlands', appeal: 10, hp: 2, speed: 170, flee: 240, size: 34, rarity: 6,  group: [2, 3], behavior: 'skittish', flies: true },
+  nessie:      { name: 'Loch Ness Monster', emoji: '🦕', biome: 'wetlands', appeal: 70, hp: 4, speed: 200, flee: 300, size: 58, rarity: 0, group: [1, 1], behavior: 'skittish', swims: true, legendary: true },
 
   monkey:      { name: 'Monkey',       emoji: '🐒', biome: 'jungle',   appeal: 8,  hp: 1, speed: 200, flee: 250, size: 30, rarity: 10, group: [2, 4], behavior: 'erratic' },
   parrot:      { name: 'Parrot',       emoji: '🦜', biome: 'jungle',   appeal: 9,  hp: 1, speed: 235, flee: 260, size: 28, rarity: 8,  group: [2, 3], behavior: 'erratic', flies: true },
@@ -49,6 +56,9 @@ const SPECIES = {
   orangutan:   { name: 'Orangutan',    emoji: '🦧', biome: 'jungle',   appeal: 15, hp: 3, speed: 150, flee: 220, size: 40, rarity: 4,  group: [1, 2], behavior: 'skittish' },
   gorilla:     { name: 'Gorilla',      emoji: '🦍', biome: 'jungle',   appeal: 20, hp: 4, speed: 130, flee: 0, aggro: 200, size: 44, rarity: 3, group: [1, 3], behavior: 'aggressive' },
   tiger:       { name: 'Tiger',        emoji: '🐅', biome: 'jungle',   appeal: 25, hp: 3, speed: 245, flee: 0, aggro: 270, size: 42, rarity: 2, group: [1, 1], behavior: 'aggressive' },
+  peacock:     { name: 'Peacock',      emoji: '🦚', biome: 'jungle',   appeal: 11, hp: 1, speed: 200, flee: 240, size: 32, rarity: 7,  group: [1, 3], behavior: 'skittish' },
+  panda:       { name: 'Panda',        emoji: '🐼', biome: 'jungle',   appeal: 22, hp: 3, speed: 60,  flee: 120, size: 40, rarity: 3,  group: [1, 2], behavior: 'calm' },
+  trex:        { name: 'T-Rex',        emoji: '🦖', biome: 'jungle',   appeal: 80, hp: 5, speed: 230, flee: 0, aggro: 320, size: 60, rarity: 0, group: [1, 1], behavior: 'aggressive', legendary: true },
 
   lizard:      { name: 'Lizard',       emoji: '🦎', biome: 'desert',   appeal: 10, hp: 1, speed: 230, flee: 220, size: 24, rarity: 10, group: [1, 3], behavior: 'erratic' },
   scorpion:    { name: 'Scorpion',     emoji: '🦂', biome: 'desert',   appeal: 11, hp: 1, speed: 150, flee: 0, aggro: 140, size: 24, rarity: 8, group: [1, 2], behavior: 'aggressive' },
@@ -56,6 +66,9 @@ const SPECIES = {
   kangaroo:    { name: 'Kangaroo',     emoji: '🦘', biome: 'desert',   appeal: 17, hp: 2, speed: 265, flee: 300, size: 38, rarity: 5,  group: [2, 3], behavior: 'erratic' },
   snake:       { name: 'Cobra',        emoji: '🐍', biome: 'desert',   appeal: 20, hp: 2, speed: 210, flee: 0, aggro: 220, size: 32, rarity: 3, group: [1, 1], behavior: 'aggressive' },
   rhino:       { name: 'Rhino',        emoji: '🦏', biome: 'desert',   appeal: 26, hp: 5, speed: 185, flee: 0, aggro: 240, size: 48, rarity: 2, group: [1, 1], behavior: 'aggressive' },
+  hedgehog:    { name: 'Desert Hedgehog', emoji: '🦔', biome: 'desert', appeal: 12, hp: 1, speed: 140, flee: 180, size: 24, rarity: 8, group: [1, 3], behavior: 'erratic' },
+  tortoise:    { name: 'Desert Tortoise', emoji: '🐢', biome: 'desert', appeal: 15, hp: 3, speed: 35, flee: 60, size: 34, rarity: 6, group: [1, 2], behavior: 'calm' },
+  scarab:      { name: 'Golden Scarab', emoji: '🪲', biome: 'desert',  appeal: 90, hp: 4, speed: 300, flee: 320, size: 28, rarity: 0,  group: [1, 1], behavior: 'erratic', legendary: true },
 
   penguin:     { name: 'Penguin',      emoji: '🐧', biome: 'tundra',   appeal: 13, hp: 1, speed: 85,  flee: 200, size: 30, rarity: 10, group: [4, 7], behavior: 'skittish' },
   seal:        { name: 'Seal',         emoji: '🦭', biome: 'tundra',   appeal: 16, hp: 2, speed: 70,  flee: 160, size: 40, rarity: 7,  group: [2, 4], behavior: 'calm', swims: true },
@@ -63,6 +76,9 @@ const SPECIES = {
   polarbear:   { name: 'Polar Bear',   emoji: '🐻‍❄️', biome: 'tundra', appeal: 30, hp: 5, speed: 175, flee: 0, aggro: 250, size: 50, rarity: 3, group: [1, 1], behavior: 'aggressive' },
   snowleopard: { name: 'Snow Leopard', emoji: '🐆', biome: 'tundra',   appeal: 38, hp: 3, speed: 280, flee: 340, size: 38, rarity: 1,  group: [1, 1], behavior: 'skittish' },
   mammoth:     { name: 'Woolly Mammoth', emoji: '🦣', biome: 'tundra', appeal: 50, hp: 7, speed: 95,  flee: 120, size: 60, rarity: 1,  group: [1, 1], behavior: 'calm' },
+  wolf:        { name: 'Arctic Wolf',  emoji: '🐺', biome: 'tundra',   appeal: 25, hp: 3, speed: 250, flee: 0, aggro: 260, size: 38, rarity: 5, group: [2, 4], behavior: 'aggressive' },
+  owl:         { name: 'Snowy Owl',    emoji: '🦉', biome: 'tundra',   appeal: 22, hp: 1, speed: 230, flee: 260, size: 28, rarity: 6,  group: [1, 2], behavior: 'skittish', flies: true },
+  frostdragon: { name: 'Frost Dragon', emoji: '🐉', biome: 'tundra',   appeal: 100, hp: 7, speed: 260, flee: 0, aggro: 320, size: 64, rarity: 0, group: [1, 1], behavior: 'aggressive', flies: true, legendary: true },
 };
 
 // Sale value scales steeply with how far away a region is. Within a region, an animal's

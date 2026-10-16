@@ -192,16 +192,16 @@ const UI = (() => {
   function fieldGuide() {
     const s = Game.s, exhibited = Game.exhibitedSpecies();
     let html = `<div class="card"><h3>📖 Field guide <span class="muted">${Object.keys(s.discovered).length}/${Object.keys(SPECIES).length} species</span></h3>
-      <p class="muted small">Regions get further from base camp as you go down the list, and their animals are worth far more. Species with a gold ring are on display in your zoo.</p>`;
+      <p class="muted small">Regions get further from base camp as you go down the list, and their animals are worth far more. Species with a gold ring are on display in your zoo. Each region also hides one rare ★ legendary animal.</p>`;
     REGION_ORDER.forEach((bk, k) => {
       const b = BIOMES[bk];
       const visited = s.regionsVisited[bk];
       html += `<div class="guide-region"><div class="guide-name">${visited ? `${b.icon} ${b.name}` : '❔ Unexplored'} <span class="muted small">${k === 0 ? 'around base camp' : s.tier > k ? `region ${k + 1}` : `🔒 needs tier ${k + 1} permit`}</span></div><div class="guide-row">`;
       for (const d of SPECIES_BY_BIOME[bk]) {
         const known = s.discovered[d.key];
-        const tip = known ? `${d.name} — sells for ${fmtMoney(d.value)}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : '???';
+        const tip = known ? `${d.legendary ? '★ LEGENDARY ★ ' : ''}${d.name} — sells for ${fmtMoney(d.value)}, net power needed ${d.hp}${d.behavior === 'aggressive' ? ', dangerous!' : ''}` : d.legendary ? '★ A legendary animal lives deep in this region ★' : '???';
         const shown = exhibited.has(d.key);
-        html += `<span class="guide-sp ${known ? '' : 'unknown'} ${shown ? 'shown' : ''}" title="${tip}">${visited || known ? animalImg(d.key) : '❔'}</span>`;
+        html += `<span class="guide-sp ${known ? '' : 'unknown'} ${shown ? 'shown' : ''} ${d.legendary ? 'legendary' : ''}" title="${tip}">${visited || known ? animalImg(d.key) : d.legendary ? '★' : '❔'}</span>`;
       }
       html += `</div></div>`;
     });

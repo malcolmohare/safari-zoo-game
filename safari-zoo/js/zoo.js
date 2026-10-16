@@ -496,6 +496,10 @@ const Zoo = (() => {
         Pixel.drawShadow(g, X(ax) + 1, Y(ay), size * 0.7);
         const sp = Pixel.animal(a.sp, size, st.flip);
         if (sp) Pixel.drawAt(g, sp, X(ax), Y(ay) + 1 - hop);
+        if (def.legendary && Math.floor(t * 3 + a.id) % 2) {   // legendary sparkle
+          const k = Math.floor(t * 1.5 + a.id) % 3, sx = X(ax) + [-size / 2, size / 2 - 2, 0][k], sy = Y(ay) - size + [4, 8, -2][k];
+          g.fillStyle = '#fff6a8'; g.fillRect(Math.round(sx), Math.round(sy) - 1, 1, 3); g.fillRect(Math.round(sx) - 1, Math.round(sy), 3, 1);
+        }
       } });
     }
     // sign
