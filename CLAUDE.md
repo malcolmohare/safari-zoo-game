@@ -6,7 +6,7 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 
 - `index.html` + `games.js`: the AIrcade landing page and its game list. `thumbs/` holds 16:9 card screenshots.
 - `shared/analytics.js`: Google Analytics, shared by the landing page and all games.
-- One folder per game (currently `safari-zoo/`), each with its own `index.html`, `js/`, `css/`, `assets/`.
+- One folder per game (currently `safari-zoo/` and `astro-blaster/`), each with its own `index.html`, `js/`, `css/`, `assets/`.
 
 ## Workflow
 
@@ -20,3 +20,8 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 - If a balance change makes old saves misleading, bump `SAVE_KEY` in `safari-zoo/js/state.js`.
 - Animal art lives in `safari-zoo/assets/animals/<species key>.png` (Fluent Emoji 3D, MIT; licence in that folder). When replacing images, bump `ASSET_VERSION` in `safari-zoo/js/util.js`.
 - Graphics are pixel art built in code in `safari-zoo/js/pixel.js` (1 art pixel = 2 world units, 16px tiles). Keep new sprites in that style: outlined, lit from the top-left, no anti-aliasing.
+
+## Astro Blaster (`astro-blaster/`)
+
+- Side-scrolling shooter drawn at a fixed 320x180 in the same pixel-art style (`js/pixel.js`, `js/sprites.js`; aliens are ASCII sprite maps).
+- Tuning lives at the top of `js/game.js`: `TYPES` (aliens), `diff()` (difficulty curve), `bossKills()` (kills before the boss), boss HP and attacks in `spawnBoss`/`updateBoss`. High score is in localStorage (`astro-blaster-hi`).

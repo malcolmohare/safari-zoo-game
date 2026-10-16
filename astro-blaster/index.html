@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Astro Blaster · AIrcade</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; touch-action: none; }
+    #btns { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); display: flex; gap: 4px;
+      background: rgba(16,22,56,0.85); border: 2px solid #f4f0e0; border-radius: 4px; padding: 2px; z-index: 5; }
+    .icon-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 6px; text-decoration: none; line-height: 1; }
+    #btn-pause { display: none; }
+    #fire { display: none; position: fixed; right: calc(28px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom));
+      width: 96px; height: 96px; border-radius: 50%; border: 3px solid rgba(244,240,224,0.7); background: rgba(224,72,56,0.45);
+      color: #fff; font: 700 15px system-ui, sans-serif; letter-spacing: 1px; touch-action: none; -webkit-tap-highlight-color: transparent; z-index: 5; }
+    #fire.down { background: rgba(248,192,64,0.7); }
+    body.touch #fire, body.touch #btn-pause { display: block; }
+    #rotate { display: none; position: fixed; left: 0; right: 0; bottom: calc(150px + env(safe-area-inset-bottom)); text-align: center;
+      color: #f8e040; font: 600 15px system-ui, sans-serif; pointer-events: none; z-index: 4; }
+    @media (orientation: portrait) { body.touch #rotate { display: block; } }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="btns">
+    <a class="icon-btn" href="../" title="Back to AIrcade">🕹️</a>
+    <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+    <button id="btn-mute" class="icon-btn" title="Sound on/off">🔊</button>
+  </div>
+  <button id="fire">FIRE</button>
+  <div id="rotate">↻ Turn your phone sideways for a bigger screen</div>
+
+  <script src="../shared/analytics.js?v=1"></script>
+  <script src="js/pixel.js?v=1"></script>
+  <script src="js/sprites.js?v=1"></script>
+  <script src="js/game.js?v=1"></script>
+</body>
+</html>

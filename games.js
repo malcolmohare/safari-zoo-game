@@ -11,4 +11,14 @@ const GAMES = [
     tags: ['Adventure', 'Management', 'Mobile friendly'],
     added: '2026-10',
   },
+  {
+    id: 'astro-blaster',
+    title: 'Astro Blaster',
+    icon: '🚀',
+    url: 'astro-blaster/',
+    thumb: 'thumbs/astro-blaster.jpg',
+    blurb: 'Hold fire and blast the alien waves. Grab power-ups, take down the mothership, and loop around for a tougher fight.',
+    tags: ['Shooter', 'Arcade', 'Endless'],
+    added: '2026-10',
+  },
 ];

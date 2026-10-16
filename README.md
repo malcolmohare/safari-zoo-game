@@ -9,6 +9,7 @@ A collection of browser games made with AI. Free to play, no install.
 | Game | Folder | About |
 | --- | --- | --- |
 | 🦒 [Safari Zoo](safari-zoo/) | `safari-zoo/` | Drive a jeep into the wild, net animals across five regions, and build your zoo. See [its README](safari-zoo/README.md). |
+| 🚀 [Astro Blaster](astro-blaster/) | `astro-blaster/` | Side-scrolling shooter: blast alien waves, collect power-ups, beat the looping boss. |
 
 ## Layout
 
@@ -18,7 +19,7 @@ A collection of browser games made with AI. Free to play, no install.
 | `games.js` | The list of games shown on the landing page |
 | `thumbs/` | 16:9 screenshots used on the game cards |
 | `shared/analytics.js` | Google Analytics setup shared by the arcade page and every game |
-| `safari-zoo/` | Safari Zoo (each game lives in its own folder) |
+| `safari-zoo/`, `astro-blaster/` | The games (each lives in its own folder) |
 
 ## Adding a game
 
