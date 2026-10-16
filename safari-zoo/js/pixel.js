@@ -723,7 +723,7 @@ const Pixel = (() => {
   }
 
   // ---------- Text & HUD panels (drawn at full resolution on top) ----------
-  const FONT = '"Pixelify Sans", "Trebuchet MS", system-ui, sans-serif';
+  const FONT = '"Nunito", "Trebuchet MS", system-ui, sans-serif';
   const font = (size, weight = 600) => `${weight} ${Math.round(size)}px ${FONT}`;
   function text(ctx, str, x, y, o = {}) {
     const size = o.size || 14;

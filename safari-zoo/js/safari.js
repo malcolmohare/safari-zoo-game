@@ -8,7 +8,7 @@ const Safari = (() => {
   const TERRAIN_SCALE = 5;                             // terrain texture is world size / 5 pixels
   const BASE = { x: WORLD_W / 2, y: WORLD_H - 220, r: 170 };
   const CELL = 200;                                    // obstacle spatial-grid cell size
-  const POP_PER_REGION = 24;
+  const POP_PER_REGION = 12;
   const JEEP_R = 20;
 
   // Obstacles and decoration per region: [emojis, count, collision radius, draw size]
@@ -101,7 +101,7 @@ const Safari = (() => {
     w.resources = [];
     for (const b of REGION_ORDER) {
       let placed = 0;
-      for (let tries = 0; placed < ECON.resourceNodesPerRegion && tries < ECON.resourceNodesPerRegion * 4; tries++) {
+      for (let tries = 0; placed < ECON.resourceNodesPerRegion && tries < ECON.resourceNodesPerRegion * 4 + 60; tries++) {
         const p = randPointIn(b, 350);
         if (!p || inCircles(w.ponds, p.x, p.y, 20)) continue;
         if (nearbyObstaclesIn(w, p.x, p.y).some((o) => dist(o.x, o.y, p.x, p.y) < o.r + 30)) continue;

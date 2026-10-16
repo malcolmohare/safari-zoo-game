@@ -110,7 +110,7 @@ const UPGRADES = {
 
 const ECON = {
   startMoney: 20,
-  resourceNodesPerRegion: 45,
+  resourceNodesPerRegion: 5,     // resources are scarce: only a few nodes per region
   resourcePerNode: 2,
   enclosureResource: 10,   // building an enclosure also costs this much of its region's resource
   expandResource: 5,       // expanding one costs this much
