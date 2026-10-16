@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Safari Zoo: 2.5D samples</title>
+  <meta name="robots" content="noindex">
+  <style>
+    :root { --bg: #14200f; --card: #1e2d18; --text: #eef4e6; --muted: #a8b89a; --accent: #f3c94b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 16px 60px; }
+    h1 { margin: 0 0 6px; font-size: 26px; }
+    .lede { color: var(--muted); margin: 0 0 26px; line-height: 1.5; }
+    section { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 26px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+    section h2 { margin: 2px 4px 4px; font-size: 18px; }
+    section p { margin: 0 4px 12px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    canvas { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 10px; background: #0b1208; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🦒 Safari Zoo: 2.5D look samples</h1>
+    <p class="lede">Mock-ups only, not playable. They use the same animal art as the game, drawn in an isometric (and one ¾ top-down) view. <a href="../safari-zoo/">Back to the game</a></p>
+
+    <section><h2>1 · Savanna safari (isometric)</h2><p>The jeep chases a herd across the grass. Trees, rocks and the water hole get height and shadows, and a net is in flight.</p><canvas id="c1"></canvas></section>
+    <section><h2>2 · Your zoo (isometric)</h2><p>Fenced pens with decorations, the office, the garage and paths, with the keeper walking around.</p><canvas id="c2"></canvas></section>
+    <section><h2>3 · Tundra on a raised plateau (isometric)</h2><p>Snow, ice and pines, with stepped terrain to show off real elevation.</p><canvas id="c3"></canvas></section>
+    <section><h2>4 · Jungle (¾ top-down, "2.5D")</h2><p>Same objects, but the camera looks straight north at an angle instead of from the corner. It's a gentler change from the current game and easier to steer with a joystick.</p><canvas id="c4"></canvas></section>
+  </div>
+
+<script>
+'use strict';
+const ART = '../safari-zoo/assets/animals/';
+const IMG = {};
+for (const k of ['zebra','giraffe','elephant','lion','antelope','warthog','rhino','polarbear','penguin','arcticfox','seal','mammoth','snowleopard','monkey','gorilla','parrot','tiger','orangutan','sloth','hippo','flamingo','crocodile','kangaroo']) {
+  IMG[k] = new Image(); IMG[k].src = ART + k + '.png';
+}
+const FLIPPED = { zebra: true };   // the zebra art faces right, the rest face left
+
+// ---------- helpers ----------
+const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 982451653) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgb = (c, k = 1) => `rgb(${Math.min(255, c[0] * k) | 0},${Math.min(255, c[1] * k) | 0},${Math.min(255, c[2] * k) | 0})`;
+const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
+// A scene: a projection + a list of drawables sorted by depth.
+function Scene(canvas, opts) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = 960, H = 600;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const g = canvas.getContext('2d');
+  const mode = opts.mode || 'iso';
+  const T = opts.tile || 54;              // pixels per tile (iso: diamond width)
+  let ox = 0, oy = 0;
+  const P = mode === 'iso'
+    ? (x, y, z = 0) => [ox + (x - y) * T / 2, oy + (x + y) * T / 4 - z * T / 2]
+    : (x, y, z = 0) => [ox + x * T, oy + y * T * 0.62 - z * T * 0.78];
+  const depth = mode === 'iso' ? (x, y) => x + y : (x, y) => y;
+  const [cx, cy] = opts.center, [sx, sy] = P(cx, cy);   // put the map's centre in the middle of the canvas
+  ox = W / 2 - sx; oy = H / 2 + (opts.dy || 0) - sy;
+  return { g, W, H, dpr, P, depth, mode, T, items: [] };
+}
+
+function poly(g, pts, fill, stroke) {
+  g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+  g.closePath();
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); }
+}
+
+// Axis-aligned box from (x,y,z) with size (w,d,h); colour is the top colour, sides darker.
+function box(s, x, y, z, w, d, h, col, o = {}) {
+  const { g, P } = s;
+  const c = typeof col === 'string' ? hex(col) : col;
+  const top = [P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)];
+  const front = [P(x, y + d, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x, y + d, z + h)];
+  const right = [P(x + w, y, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x + w, y, z + h)];
+  const edge = o.edge === false ? null : 'rgba(0,0,0,.18)';
+  if (s.mode === 'iso') { poly(g, right, rgb(c, o.rk ?? 0.62), edge); poly(g, front, rgb(c, o.fk ?? 0.8), edge); }
+  else { poly(g, front, rgb(c, o.fk ?? 0.7), edge); }
+  poly(g, top, o.topFill || rgb(c), edge);
+}
+
+function shadow(s, x, y, rx, ry = rx, a = 0.28) {
+  const { g, P, T } = s;
+  const [px, py] = P(x, y, 0);
+  g.save(); g.fillStyle = `rgba(0,0,0,${a})`;
+  g.beginPath();
+  if (s.mode === 'iso') g.ellipse(px, py, rx * T * 0.72, ry * T * 0.36, 0, 0, Math.PI * 2);
+  else g.ellipse(px, py, rx * T, ry * T * 0.55, 0, 0, Math.PI * 2);
+  g.fill(); g.restore();
+}
+
+function ball(g, x, y, r, col, k = 1) {
+  const c = typeof col === 'string' ? hex(col) : col;
+  const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r);
+  gr.addColorStop(0, rgb(c, 1.35 * k)); gr.addColorStop(0.55, rgb(c, k)); gr.addColorStop(1, rgb(c, 0.6 * k));
+  g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+}
+
+// ---------- terrain ----------
+function addGround(s, n, m, tileFn) {
+  for (let y = 0; y < m; y++) for (let x = 0; x < n; x++) {
+    const t = tileFn(x, y);
+    if (!t) continue;
+    s.items.push({ d: s.depth(x, y) - 0.01 + (s.mode === 'iso' ? 0 : -0.5), draw: () => drawTile(s, x, y, t) });
+  }
+}
+function drawTile(s, x, y, t) {
+  const { g, P } = s;
+  const z = t.z || 0;
+  const v = (hash(x, y, 7) - 0.5) * (t.vary ?? 0.12);
+  const c = t.col.map((ch) => ch * (1 + v));
+  if (z > 0) {   // cliff sides
+    const cl = t.side || mix(t.col, [90, 80, 70], 0.55);
+    box(s, x, y, 0, 1, 1, z, cl, { edge: false, topFill: rgb(c) });
+    for (let i = 1; i < z * 4; i++) {   // strata lines
+      const a = P(x, y + 1, i / 4), b = P(x + 1, y + 1, i / 4);
+      g.strokeStyle = 'rgba(0,0,0,.12)'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    }
+  } else {
+    poly(g, [P(x, y, z), P(x + 1, y, z), P(x + 1, y + 1, z), P(x, y + 1, z)], rgb(c));
+  }
+  // speckles (grass tufts / snow sparkle)
+  if (t.speck) {
+    for (let i = 0; i < 4; i++) {
+      const u = hash(x, y, i * 3 + 1), w = hash(x, y, i * 3 + 2);
+      if (hash(x, y, i * 3 + 3) > 0.55) continue;
+      const [px, py] = P(x + u, y + w, z);
+      g.fillStyle = t.speck; g.fillRect(px - 1, py - 2, 2, 3);
+    }
+  }
+  if (t.water) {
+    const [px, py] = P(x + 0.5, y + 0.5, z);
+    const ph = (performance.now() / 900 + x * 0.7 + y * 0.4);
+    g.strokeStyle = `rgba(255,255,255,${0.18 + 0.12 * Math.sin(ph)})`; g.lineWidth = 1.2;
+    g.beginPath(); g.ellipse(px, py, s.T * 0.18, s.T * 0.05, 0, 0, Math.PI); g.stroke();
+  }
+}
+
+// ---------- props ----------
+function tree(s, x, y, kind, size = 1) {
+  s.items.push({ d: s.depth(x, y), draw: () => {
+    const { g, P, T } = s;
+    shadow(s, x + 0.25, y + 0.15, 0.6 * size, 0.6 * size, 0.25);
+    const z0 = s.zAt ? s.zAt(x, y) : 0;
+    if (kind === 'pine') {
+      box(s, x - 0.06, y - 0.06, z0, 0.12, 0.12, 0.5 * size, '#6b4a2f');
+      const [px, py] = P(x, y, z0 + 0.4 * size);
+      for (let i = 0; i < 4; i++) {
+        const w = T * (0.42 - i * 0.08) * size, h = T * 0.38 * size, yy = py - i * T * 0.24 * size;
+        g.fillStyle = rgb([38, 84 + i * 6, 62], 1 - i * 0.03);
+        g.beginPath(); g.moveTo(px - w, yy); g.lineTo(px, yy - h); g.lineTo(px + w, yy); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.moveTo(px, yy - h); g.lineTo(px + w, yy); g.lineTo(px, yy); g.closePath(); g.fill();
+        if (s.snowy) { g.fillStyle = 'rgba(245,250,255,.9)'; g.beginPath(); g.moveTo(px - w * 0.35, yy - h * 0.62); g.lineTo(px, yy - h); g.lineTo(px + w * 0.3, yy - h * 0.66); g.closePath(); g.fill(); }
+      }
+      return;
+    }
+    const trunkH = kind === 'acacia' ? 1.1 : kind === 'palm' ? 1.4 : 0.8;
+    box(s, x - 0.07, y - 0.07, z0, 0.14, 0.14, trunkH * size, kind === 'palm' ? '#8a6a45' : '#6e4b30');
+    const [px, py] = P(x, y, z0 + trunkH * size);
+    if (kind === 'acacia') {   // flat umbrella canopy
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2, r = T * 0.32 * size;
+        ball(g, px + Math.cos(a) * r, py + Math.sin(a) * r * 0.4, T * 0.24 * size, [96, 132, 56]);
+      }
+      ball(g, px, py - T * 0.06, T * 0.3 * size, [110, 148, 62]);
+    } else if (kind === 'palm') {
+      g.lineCap = 'round';
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + 0.3;
+        const ex = px + Math.cos(a) * T * 0.6 * size, ey = py + Math.sin(a) * T * 0.25 * size + T * 0.12;
+        g.strokeStyle = rgb([58, 128, 60], 0.85 + 0.2 * Math.sin(a)); g.lineWidth = T * 0.1 * size;
+        g.beginPath(); g.moveTo(px, py); g.quadraticCurveTo((px + ex) / 2, py - T * 0.25 * size, ex, ey); g.stroke();
+      }
+    } else {   // broadleaf / jungle: cluster of shaded spheres
+      const col = kind === 'jungle' ? [42, 112, 58] : [70, 128, 60];
+      const pts = [[-0.3, 0.05], [0.3, 0.05], [0, -0.3], [-0.15, -0.12], [0.18, -0.15], [0, 0.12]];
+      for (const [dx, dy] of pts) ball(g, px + dx * T * size, py + dy * T * size, T * 0.3 * size, col);
+    }
+  } });
+}
+
+function rock(s, x, y, size = 1, col = '#8d8a80') {
+  s.items.push({ d: s.depth(x, y), draw: () => {
+    const { g, P, T } = s;
+    shadow(s, x + 0.1, y + 0.08, 0.4 * size, 0.4 * size, 0.22);
+    const z0 = s.zAt ? s.zAt(x, y) : 0;
+    const [px, py] = P(x, y, z0);
+    const c = hex(col);
+    g.save(); g.translate(px, py);
+    const r = T * 0.26 * size;
+    poly(g, [[-r, 0], [-r * 0.8, -r * 0.7], [-r * 0.1, -r * 1.05], [r * 0.7, -r * 0.8], [r, -r * 0.1], [r * 0.6, r * 0.2], [-r * 0.5, r * 0.25]], rgb(c, 0.75));
+    poly(g, [[-r * 0.8, -r * 0.7], [-r * 0.1, -r * 1.05], [r * 0.7, -r * 0.8], [r * 0.2, -r * 0.35], [-r * 0.5, -r * 0.35]], rgb(c, 1.12));
+    poly(g, [[r * 0.2, -r * 0.35], [r * 0.7, -r * 0.8], [r, -r * 0.1], [r * 0.6, r * 0.2]], rgb(c, 0.6));
+    if (s.snowy) poly(g, [[-r * 0.7, -r * 0.7], [-r * 0.1, -r * 1.05], [r * 0.6, -r * 0.8], [-r * 0.1, -r * 0.6]], 'rgba(245,250,255,.95)');
+    g.restore();
+  } });
+}
+
+function animal(s, x, y, key, size = 1, o = {}) {
+  s.items.push({ d: s.depth(x, y) + 0.02, draw: () => {
+    const { g, P, T } = s;
+    const img = IMG[key];
+    const z0 = s.zAt ? s.zAt(x, y) : 0;
+    shadow(s, x, y, 0.38 * size, 0.38 * size, 0.3);
+    if (!img.complete || !img.naturalWidth) return;
+    const t = performance.now() / 1000;
+    const bob = Math.abs(Math.sin(t * (o.speed || 3) + x * 1.7 + y)) * T * 0.06;
+    const [px, py] = P(x, y, z0);
+    const w = T * 1.05 * size;
+    const flip = !!o.faceRight !== !!FLIPPED[key];
+    g.save(); g.translate(px, py - bob);
+    if (flip) g.scale(-1, 1);
+    g.drawImage(img, -w / 2, -w * 0.92, w, w);
+    g.restore();
+    if (o.ring) { g.strokeStyle = o.ring; g.lineWidth = 2; g.beginPath(); g.ellipse(px, py, T * 0.4 * size, T * 0.2 * size, 0, 0, Math.PI * 2); g.stroke(); }
+  } });
+}
+
+function jeep(s, x, y, o = {}) {
+  s.items.push({ d: s.depth(x + 0.6, y + 0.4), draw: () => {
+    const { g, P, T } = s;
+    const z0 = s.zAt ? s.zAt(x, y) : 0;
+    shadow(s, x + 0.65, y + 0.45, 1.0, 0.75, 0.32);
+    const L = 1.35, Wd = 0.8;
+    const wheel = (wx, wy) => { const [px, py] = P(wx, wy, z0 + 0.16); g.fillStyle = '#1b1b1b'; g.beginPath(); g.ellipse(px, py, T * 0.13, T * 0.15, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#777'; g.beginPath(); g.ellipse(px, py, T * 0.05, T * 0.06, 0, 0, Math.PI * 2); g.fill(); };
+    wheel(x + 0.25, y); wheel(x + 1.1, y);                       // far wheels first
+    box(s, x, y, z0 + 0.15, L, Wd, 0.32, o.col || '#d39b2a');         // body
+    box(s, x + L - 0.32, y + 0.05, z0 + 0.47, 0.3, Wd - 0.1, 0.1, '#b9851f');   // bonnet hump
+    box(s, x + 0.05, y + 0.05, z0 + 0.47, 0.75, Wd - 0.1, 0.03, '#5b4128');     // floor / seats
+    box(s, x + 0.28, y + 0.12, z0 + 0.5, 0.22, 0.25, 0.2, '#3f2e1f'); box(s, x + 0.28, y + 0.43, z0 + 0.5, 0.22, 0.25, 0.2, '#3f2e1f');
+    box(s, x + 0.95, y + 0.03, z0 + 0.47, 0.04, Wd - 0.06, 0.32, '#9ad3ec', { rk: 0.9, fk: 0.95 });  // windscreen
+    // roll bar
+    const a = P(x + 0.12, y + 0.04, z0 + 0.47), b = P(x + 0.12, y + 0.04, z0 + 1.0), c = P(x + 0.12, y + Wd - 0.04, z0 + 1.0), d = P(x + 0.12, y + Wd - 0.04, z0 + 0.47);
+    g.strokeStyle = '#2c2c2c'; g.lineWidth = 3; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]); g.stroke();
+    box(s, x - 0.1, y + 0.2, z0 + 0.22, 0.1, 0.4, 0.4, '#232323');    // spare tyre
+    // headlights
+    for (const yy of [y + 0.15, y + Wd - 0.15]) { const [hx, hy] = P(x + L, yy, z0 + 0.35); g.fillStyle = '#fff6c2'; g.beginPath(); g.arc(hx, hy, 2.6, 0, Math.PI * 2); g.fill(); }
+    wheel(x + 0.25, y + Wd); wheel(x + 1.1, y + Wd);
+    if (o.driver) { const [dx, dy] = P(x + 0.4, y + 0.55, z0 + 0.78); ball(g, dx, dy, T * 0.11, '#e0b48a'); g.fillStyle = '#c8a46a'; g.beginPath(); g.ellipse(dx, dy - T * 0.08, T * 0.16, T * 0.05, 0, 0, Math.PI * 2); g.fill(); ball(g, dx, dy - T * 0.12, T * 0.08, '#c8a46a'); }
+  } });
+}
+
+function net(s, x, y, z) {
+  s.items.push({ d: s.depth(x, y) + 0.5, draw: () => {
+    const { g, P, T } = s;
+    shadow(s, x, y, 0.35, 0.35, 0.18);
+    const t = performance.now() / 300;
+    const [px, py] = P(x, y, z);
+    g.save(); g.translate(px, py); g.rotate(t * 0.4);
+    const r = T * 0.32;
+    g.strokeStyle = 'rgba(250,250,240,.9)'; g.lineWidth = 1.3;
+    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+    for (let i = -2; i <= 2; i++) { const k = i * r / 2.5, w = Math.sqrt(r * r - k * k); g.beginPath(); g.moveTo(-w, k); g.lineTo(w, k); g.moveTo(k, -w); g.lineTo(k, w); g.stroke(); }
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; g.fillStyle = '#555'; g.beginPath(); g.arc(Math.cos(a) * r, Math.sin(a) * r, 2.4, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  } });
+}
+
+// A fence around a rectangle, split into one drawable per span so depth sorting works.
+function fence(s, x0, y0, x1, y1, col = '#8a5f37', gate) {
+  const spans = [];
+  for (let x = x0; x < x1; x++) { spans.push([x, y0, x + 1, y0]); spans.push([x, y1, x + 1, y1]); }
+  for (let y = y0; y < y1; y++) { spans.push([x0, y, x0, y + 1]); spans.push([x1, y, x1, y + 1]); }
+  for (const [ax, ay, bx, by] of spans) {
+    if (gate && ax === gate[0] && ay === gate[1] && bx === gate[2] && by === gate[3]) continue;
+    s.items.push({ d: s.depth((ax + bx) / 2, (ay + by) / 2) + 0.03, draw: () => {
+      const { g, P } = s;
+      const c = hex(col);
+      for (const h of [0.22, 0.42]) {
+        const p = P(ax, ay, h), q = P(bx, by, h);
+        g.strokeStyle = rgb(c, 0.7); g.lineWidth = 3.2; g.beginPath(); g.moveTo(p[0], p[1] + 1); g.lineTo(q[0], q[1] + 1); g.stroke();
+        g.strokeStyle = rgb(c, 1.1); g.lineWidth = 1.8; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+      }
+      for (const [px, py] of [[ax, ay], [bx, by]]) box(s, px - 0.04, py - 0.04, 0, 0.08, 0.08, 0.55, c.map((v) => v * 0.9));
+    } });
+  }
+}
+
+function building(s, x, y, w, d, h, wall, roof, o = {}) {
+  s.items.push({ d: s.depth(x + w / 2, y + d / 2) + Math.min(w, d) / 2, draw: () => {
+    const { g, P, T } = s;
+    shadow(s, x + w / 2 + 0.3, y + d / 2 + 0.3, w * 0.75, d * 0.75, 0.25);
+    box(s, x, y, 0, w, d, h, wall);
+    // windows + door on the front (+y) and right (+x) faces
+    const win = (px, py, pz, alongX) => {
+      const a = alongX ? [P(px, py, pz), P(px + 0.28, py, pz), P(px + 0.28, py, pz + 0.28), P(px, py, pz + 0.28)]
+                       : [P(px, py, pz), P(px, py + 0.28, pz), P(px, py + 0.28, pz + 0.28), P(px, py, pz + 0.28)];
+      poly(g, a, '#7fc4e0', 'rgba(0,0,0,.35)');
+    };
+    for (let i = 0.35; i < w - 0.3; i += 0.7) win(x + i, y + d + 0.001, h * 0.45, true);
+    if (s.mode === 'iso') for (let i = 0.35; i < d - 0.3; i += 0.7) win(x + w + 0.001, y + i, h * 0.45, false);
+    if (o.door) poly(g, [P(x + w / 2 - 0.18, y + d + 0.002, 0), P(x + w / 2 + 0.18, y + d + 0.002, 0), P(x + w / 2 + 0.18, y + d + 0.002, 0.55), P(x + w / 2 - 0.18, y + d + 0.002, 0.55)], '#5a3a22');
+    // pitched roof, ridge along x
+    const rh = o.roofH ?? 0.6, e = 0.12, ym = y + d / 2, r = hex(roof);
+    poly(g, [P(x - e, y - e, h), P(x + w + e, y - e, h), P(x + w + e, ym, h + rh), P(x - e, ym, h + rh)], rgb(r, 1.05));
+    if (s.mode === 'iso') poly(g, [P(x + w + e, y - e, h), P(x + w + e, y + d + e, h), P(x + w + e, ym, h + rh)], rgb(hex(wall), 0.7), 'rgba(0,0,0,.2)');
+    poly(g, [P(x - e, y + d + e, h), P(x + w + e, y + d + e, h), P(x + w + e, ym, h + rh), P(x - e, ym, h + rh)], rgb(r, 0.82), 'rgba(0,0,0,.25)');
+    if (o.sign) {
+      const [px, py] = P(x + w / 2, y + d + 0.01, h + 0.05);
+      g.font = `bold ${Math.round(T * 0.22)}px system-ui, sans-serif`; g.textAlign = 'center';
+      const tw = g.measureText(o.sign).width + 10;
+      g.fillStyle = '#f4ead2'; g.fillRect(px - tw / 2, py - T * 0.26, tw, T * 0.26);
+      g.fillStyle = '#3a2a18'; g.fillText(o.sign, px, py - T * 0.06);
+    }
+  } });
+}
+
+function keeper(s, x, y) {
+  s.items.push({ d: s.depth(x, y) + 0.02, draw: () => {
+    const { g, P, T } = s;
+    shadow(s, x, y, 0.2, 0.2, 0.3);
+    const t = performance.now() / 180, sw = Math.sin(t) * 0.05;
+    box(s, x - 0.08 + sw, y - 0.04, 0, 0.07, 0.07, 0.35, '#5a4a32'); box(s, x + 0.02 - sw, y - 0.04, 0, 0.07, 0.07, 0.35, '#5a4a32');
+    box(s, x - 0.1, y - 0.08, 0.35, 0.22, 0.16, 0.38, '#7d8f4a');
+    const [hx, hy] = P(x, y, 0.95);
+    ball(g, hx, hy, T * 0.12, '#e3b48c');
+    g.fillStyle = '#c9a565'; g.beginPath(); g.ellipse(hx, hy - T * 0.07, T * 0.2, T * 0.06, 0, 0, Math.PI * 2); g.fill(); ball(g, hx, hy - T * 0.12, T * 0.1, '#c9a565');
+  } });
+}
+
+function bush(s, x, y, col = [74, 120, 52], size = 1) {
+  s.items.push({ d: s.depth(x, y), draw: () => {
+    const { g, P, T } = s;
+    const z0 = s.zAt ? s.zAt(x, y) : 0;
+    shadow(s, x + 0.05, y + 0.05, 0.3 * size, 0.3 * size, 0.2);
+    const [px, py] = P(x, y, z0);
+    for (const [dx, dy, r] of [[-0.14, -0.08, 0.15], [0.14, -0.08, 0.15], [0, -0.17, 0.17]]) ball(g, px + dx * T * size, py + dy * T * size, r * T * size, col);
+  } });
+}
+
+function sign(s, x, y, text) {
+  s.items.push({ d: s.depth(x, y), draw: () => {
+    const { g, P, T } = s;
+    box(s, x - 0.03, y - 0.03, 0, 0.06, 0.06, 0.55, '#6b4a2f');
+    const [px, py] = P(x, y, 0.6);
+    g.font = `bold ${Math.round(T * 0.17)}px system-ui, sans-serif`; g.textAlign = 'center';
+    const tw = g.measureText(text).width + 8;
+    g.fillStyle = '#f4ead2'; g.fillRect(px - tw / 2, py - T * 0.22, tw, T * 0.24);
+    g.strokeStyle = '#6b4a2f'; g.strokeRect(px - tw / 2, py - T * 0.22, tw, T * 0.24);
+    g.fillStyle = '#7a2a1a'; g.fillText(text, px, py - T * 0.04);
+  } });
+}
+
+function render(s, sky) {
+  const { g, W, H, dpr } = s;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, sky[0]); gr.addColorStop(1, sky[1]);
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  s.items.sort((a, b) => a.d - b.d);
+  for (const it of s.items) it.draw();
+  const v = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 0.95);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.35)');
+  g.fillStyle = v; g.fillRect(0, 0, W, H);
+}
+
+// ---------- scene 1: savanna safari ----------
+function savanna() {
+  const s = Scene(document.getElementById('c1'), { tile: 84, center: [7.5, 7.5] });
+  const N = 15;
+  const pond = (x, y) => (x - 10.5) ** 2 / 4 + (y - 3.5) ** 2 / 2.2 < 1;
+  const shore = (x, y) => (x - 10.5) ** 2 / 5.6 + (y - 3.5) ** 2 / 3.3 < 1;
+  const track = (x, y) => Math.abs(y - (8 + Math.sin(x * 0.5) * 1.3)) < 0.75;
+  addGround(s, N, N, (x, y) => pond(x, y) ? { col: [64, 128, 160], vary: 0.06, water: true }
+    : shore(x, y) ? { col: [176, 160, 108], vary: 0.08 }
+    : track(x, y) ? { col: [184, 150, 98], vary: 0.1 }
+    : { col: mix([172, 166, 82], [138, 150, 70], hash(x >> 1, y >> 1)), speck: 'rgba(90,100,40,.6)' });
+  tree(s, 3.3, 2.6, 'acacia', 1.15); tree(s, 6.5, 11.6, 'acacia'); tree(s, 13.2, 9.5, 'acacia', 0.9); tree(s, 1.7, 12.5, 'broadleaf', 0.8);
+  rock(s, 7.4, 2.3, 1.4); rock(s, 7.9, 2.9, 0.8); rock(s, 12.4, 12.6, 1.1); rock(s, 2.6, 7.2, 0.9, '#a08f78');
+  for (const [x, y] of [[5, 4.5], [12.5, 6.4], [9.6, 12.5], [1.4, 4.3], [4.2, 13.4]]) bush(s, x, y, [118, 128, 54]);
+  animal(s, 9.4, 5.8, 'elephant', 1.6, { speed: 1.5 });
+  animal(s, 12.2, 5.2, 'giraffe', 1.7, { speed: 1.2 });
+  animal(s, 7.0, 7.0, 'zebra', 1.05, { faceRight: true, speed: 5 });
+  animal(s, 7.8, 6.2, 'zebra', 1.05, { faceRight: true, speed: 5.4 });
+  animal(s, 6.4, 6.0, 'antelope', 0.95, { faceRight: true, speed: 6 });
+  animal(s, 10.6, 10.6, 'warthog', 0.8);
+  animal(s, 5.2, 11.0, 'lion', 1.1, { faceRight: true });
+  jeep(s, 2.9, 7.6, { driver: true });
+  net(s, 5.1, 7.3, 0.9);
+  return s;
+}
+
+// ---------- scene 2: zoo ----------
+function zoo() {
+  const s = Scene(document.getElementById('c2'), { tile: 64, center: [9, 8.5] });
+  const N = 18;
+  const pens = [
+    { x: 2, y: 2, w: 5, h: 4, ground: [196, 176, 110], kind: 'savanna' },
+    { x: 9, y: 2, w: 5, h: 4, ground: [92, 140, 96], kind: 'wetlands' },
+    { x: 2, y: 9, w: 5, h: 4, ground: [210, 220, 230], kind: 'tundra' },
+    { x: 9, y: 9, w: 5, h: 4, ground: [92, 128, 64], kind: 'plot' },
+  ];
+  const inPen = (x, y) => pens.find((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h);
+  const path = (x, y) => (x === 7 || x === 8) || (y === 7 || y === 8) || y === 14 || y === 15;
+  addGround(s, N, N, (x, y) => {
+    const p = inPen(x, y);
+    if (p) {
+      if (p.kind === 'wetlands' && (x - 11.5) ** 2 + (y - 3.6) ** 2 * 1.5 < 2.2) return { col: [70, 132, 168], vary: 0.05, water: true };
+      return { col: p.ground, vary: 0.1, speck: p.kind === 'plot' ? 'rgba(40,70,30,.5)' : null };
+    }
+    if (path(x, y)) return { col: [196, 180, 150], vary: 0.06 };
+    return { col: [86, 136, 66], speck: 'rgba(40,80,30,.6)' };
+  });
+  for (const p of pens) fence(s, p.x, p.y, p.x + p.w, p.y + p.h, p.kind === 'plot' ? '#9c8f7a' : '#8a5f37', [p.x + 2, p.y + p.h, p.x + 3, p.y + p.h]);
+  // savanna pen
+  tree(s, 3, 3, 'acacia', 0.85); rock(s, 5.9, 2.8, 0.9);
+  animal(s, 4.3, 4.6, 'giraffe', 1.45); animal(s, 5.6, 4.3, 'zebra', 1); animal(s, 3.2, 5.2, 'antelope', 0.9, { faceRight: true });
+  // wetlands pen
+  animal(s, 11.6, 3.9, 'hippo', 1.25); animal(s, 13.1, 4.9, 'flamingo', 0.95); animal(s, 10, 5.2, 'crocodile', 1.0, { faceRight: true });
+  bush(s, 9.6, 2.6, [60, 120, 70]); bush(s, 13.4, 2.6, [60, 120, 70]);
+  // tundra pen
+  s.snowy = false;
+  rock(s, 3.0, 9.8, 1.2, '#b8c4cc'); tree(s, 6.3, 9.6, 'pine', 0.8);
+  animal(s, 4.4, 11.2, 'polarbear', 1.2); animal(s, 5.8, 12.2, 'penguin', 0.75); animal(s, 6.4, 11.6, 'penguin', 0.7, { faceRight: true });
+  // empty plot
+  sign(s, 11.5, 11, 'FOR SALE');
+  // buildings
+  building(s, 15, 2, 2.4, 2, 1.1, '#e9dcc0', '#b5483a', { door: true, sign: 'OFFICE' });
+  building(s, 15, 9.2, 2.4, 2.2, 0.95, '#c7c9cc', '#4f6f8f', { door: true, sign: 'GARAGE' });
+  jeep(s, 15.4, 12.2);
+  tree(s, 0.8, 7.6, 'broadleaf', 0.9); tree(s, 16.6, 6.6, 'broadleaf', 0.8); tree(s, 0.8, 16.3, 'broadleaf'); bush(s, 4.8, 16.5); bush(s, 12, 16.6);
+  keeper(s, 7.9, 7.5);
+  return s;
+}
+
+// ---------- scene 3: tundra plateau ----------
+function tundra() {
+  const s = Scene(document.getElementById('c3'), { tile: 76, center: [7.5, 7.5] });
+  s.snowy = true;
+  const N = 15;
+  const Z = (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    if (xi >= 1 && xi <= 6 && yi >= 1 && yi <= 5) return (xi <= 3 && yi <= 3) ? 1.0 : 0.5;
+    return 0;
+  };
+  s.zAt = Z;
+  const ice = (x, y) => (x - 10) ** 2 / 6 + (y - 9.5) ** 2 / 3 < 1;
+  addGround(s, N, N, (x, y) => ice(x, y) ? { col: [168, 210, 230], vary: 0.05, water: true }
+    : { col: mix([236, 242, 248], [214, 224, 234], hash(x >> 1, y >> 1, 3)), z: Z(x, y), side: [128, 132, 140], speck: 'rgba(255,255,255,.95)', vary: 0.05 });
+  tree(s, 2.0, 1.6, 'pine', 1.1); tree(s, 1.5, 3.2, 'pine', 0.9); tree(s, 9.0, 1.8, 'pine', 1.2); tree(s, 10.4, 2.8, 'pine', 0.9);
+  tree(s, 13.4, 12.6, 'pine', 1.1); tree(s, 1.6, 12.4, 'pine'); tree(s, 12.8, 5.5, 'pine', 0.85);
+  rock(s, 6.3, 9.0, 1.2, '#8b929b'); rock(s, 4.4, 13.2, 1, '#8b929b'); rock(s, 5.6, 3.9, 0.9, '#8b929b');
+  animal(s, 3.0, 2.5, 'snowleopard', 1.0, { faceRight: true });
+  animal(s, 7.9, 6.3, 'mammoth', 1.9, { speed: 1 });
+  animal(s, 9.0, 9.7, 'seal', 0.9); animal(s, 11.3, 9.2, 'penguin', 0.75); animal(s, 11.9, 10, 'penguin', 0.7, { faceRight: true }); animal(s, 10.6, 10.5, 'penguin', 0.72);
+  animal(s, 12.0, 7.8, 'polarbear', 1.25);
+  animal(s, 5.5, 11.0, 'arcticfox', 0.8, { faceRight: true });
+  jeep(s, 2.4, 8.8, { driver: true, col: '#c0392b' });
+  return s;
+}
+
+// ---------- scene 4: jungle, 3/4 top-down ----------
+function jungle() {
+  const s = Scene(document.getElementById('c4'), { mode: 'oblique', tile: 72, center: [7.5, 6.5], dy: 10 });
+  const N = 15, M = 13;
+  const river = (x, y) => Math.abs(x - (10 + Math.sin(y * 0.6) * 1.2)) < 1.1;
+  const trail = (x, y) => Math.abs(y - 8.5) < 0.6 && !river(x, y);
+  addGround(s, N, M, (x, y) => river(x, y) ? { col: [58, 118, 112], vary: 0.05, water: true }
+    : trail(x, y) ? { col: [140, 112, 74], vary: 0.1 }
+    : { col: mix([52, 102, 52], [70, 118, 56], hash(x >> 1, y >> 1, 5)), speck: 'rgba(20,50,20,.6)' });
+  for (const [x, y, k, sz] of [[1, 1.2, 'jungle', 1.2], [3.2, 0.8, 'palm', 1], [5.6, 1.4, 'jungle', 1.1], [7.6, 0.9, 'jungle', 1.3], [12.8, 1.2, 'jungle', 1.2], [14, 3.4, 'palm', 1],
+    [1.2, 5.4, 'palm', 1.1], [6.6, 4.6, 'jungle', 1], [13.4, 7.0, 'jungle', 1.1], [2.0, 11.8, 'jungle', 1.2], [6.3, 12.2, 'palm', 1], [13.3, 11.6, 'jungle', 1.3]]) tree(s, x, y, k, sz);
+  for (const [x, y] of [[4.2, 3.5], [8.2, 6.2], [12.3, 4.8], [3.5, 7.3], [5.2, 10.6], [12.2, 9.8], [8.3, 11.3]]) bush(s, x, y, [48, 112, 54], 1.2);
+  rock(s, 8.4, 3.3, 1.2, '#7b7f6f');
+  animal(s, 4.8, 5.8, 'gorilla', 1.3); animal(s, 6.8, 2.6, 'monkey', 0.8, { faceRight: true, speed: 6 });
+  animal(s, 11.9, 6.4, 'tiger', 1.2); animal(s, 7.4, 10.3, 'orangutan', 1.1); animal(s, 3.3, 9.4, 'parrot', 0.65, { speed: 7 });
+  animal(s, 13.2, 9.0, 'sloth', 0.85);
+  jeep(s, 1.4, 8.1, { driver: true, col: '#5d7f3a' });
+  net(s, 3.7, 7.6, 0.8);
+  return s;
+}
+
+const scenes = [];
+function build() { scenes.length = 0; scenes.push([savanna(), ['#9ec6dd', '#d9e3c9']], [zoo(), ['#7fae6b', '#5b8a4b']], [tundra(), ['#c6d6e6', '#eef3f8']], [jungle(), ['#2f5a33', '#1d3a22']]); }
+build();
+function frame() { for (const [s, sky] of scenes) render(s, sky); requestAnimationFrame(frame); }
+let loaded = 0; const total = Object.keys(IMG).length;
+for (const im of Object.values(IMG)) { im.onload = im.onerror = () => { loaded++; }; }
+requestAnimationFrame(frame);
+window.samplesReady = () => loaded >= total;
+</script>
+</body>
+</html>
