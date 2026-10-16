@@ -102,10 +102,10 @@ for (const [biome, list] of Object.entries(SPECIES_BY_BIOME)) {
 // It's sized to roughly 15 safari trips of selling that tier's animals.
 const TIERS = [
   { species: 0,  budget: 80 },     // tier 1: Savanna
-  { species: 5,  budget: 320 },    // tier 2: Wetlands
-  { species: 10, budget: 1000 },   // tier 3: Jungle
-  { species: 16, budget: 3200 },   // tier 4: Desert
-  { species: 22, budget: 10000 },  // tier 5: Tundra
+  { species: 7,  budget: 320 },    // tier 2: Wetlands (7 of the 8 savanna species)
+  { species: 13, budget: 1000 },   // tier 3: Jungle
+  { species: 21, budget: 3200 },   // tier 4: Desert
+  { species: 29, budget: 10000 },  // tier 5: Tundra
 ];
 
 // Jeep & net upgrades. Each has many small levels, spread evenly across the 5 tiers
