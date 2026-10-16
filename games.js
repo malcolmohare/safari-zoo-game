@@ -6,7 +6,7 @@ const GAMES = [
     title: 'Safari Zoo',
     icon: '🦒',
     url: 'safari-zoo/',
-    thumb: 'thumbs/safari-zoo.jpg',
+    thumb: 'thumbs/safari-zoo.jpg?v=2',
     blurb: 'Drive a jeep into the wild, net animals across five regions, and build the zoo of your dreams.',
     tags: ['Adventure', 'Management', 'Mobile friendly'],
     added: '2026-10',

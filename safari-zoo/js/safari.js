@@ -20,7 +20,7 @@ const Safari = (() => {
     tundra:   { ponds: 0,  ice: 10, obstacles: [[['🌲'], 110, 15, 50], [['🪨'], 30, 18, 36]] },
   };
 
-  let canvas, ctx, W = 0, H = 0;
+  let canvas, ctx, view, W = 0, H = 0, VW = 0, VH = 0;   // W, H: screen size in CSS px; VW, VH: view size in world units
   let S = null;       // runtime state for the current safari
   let onEnd = null;   // callback(cargo, towed, regionsVisited)
 
@@ -66,7 +66,7 @@ const Safari = (() => {
   function genWorld() {
     const w = {
       ph: [rand(0, 100), rand(0, 100), rand(0, 100)],
-      ponds: [], ice: [], obstacles: [], grid: new Map(), decor: [],
+      ponds: [], ice: [], obstacles: [], grid: new Map(),
     };
     S.world = w;
 
@@ -97,18 +97,6 @@ const Safari = (() => {
     // Painter's order by y so lower things overlap higher ones.
     w.obstacles.sort((a, b) => a.y - b.y);
 
-    // Non-colliding ground decoration.
-    const DETAILS = {
-      savanna: ['drytuft', 'drytuft', 'tuft', 'flowers'], wetlands: ['reeds', 'tuft', 'fern'],
-      jungle: ['fern', 'fern', 'tuft'], desert: ['pebbles', 'pebbles', 'drytuft'], tundra: ['snowmound', 'snowmound', 'snowmound'],
-    };
-    for (let i = 0; i < 1600; i++) {
-      const x = rand(0, WORLD_W), y = rand(0, WORLD_H);
-      if (inCircles(w.ponds, x, y) || inCircles(w.ice, x, y)) continue;
-      const opts = DETAILS[biomeAt(x, y)];
-      w.decor.push({ x, y, kind: opts[randInt(0, opts.length - 1)], seed: randInt(0, 5), size: rand(18, 30) });
-    }
-
     // Resource nodes to gather (one resource type per region).
     w.resources = [];
     for (const b of REGION_ORDER) {
@@ -122,83 +110,37 @@ const Safari = (() => {
       }
     }
 
-    w.terrain = renderTerrain(w);
+    buildTiles(w);
   }
 
-  // Ground colours per region: [main, patches, accent].
-  const GROUND = {
-    savanna:  [[206, 182, 112], [176, 160, 92], [186, 148, 98]],
-    wetlands: [[112, 146, 92],  [86, 124, 74],  [118, 104, 74]],
-    jungle:   [[66, 112, 52],   [48, 92, 42],   [88, 128, 60]],
-    desert:   [[232, 202, 146], [214, 180, 124], [240, 216, 168]],
-    tundra:   [[236, 241, 247], [212, 224, 238], [246, 249, 252]],
-  };
-
-  function renderTerrain(w) {
-    const nw = Math.ceil(WORLD_W / TERRAIN_SCALE), nh = Math.ceil(WORLD_H / TERRAIN_SCALE);
-    const c = document.createElement('canvas');
-    c.width = nw; c.height = nh;
-    const g = c.getContext('2d');
-    const img = g.createImageData(nw, nh);
+  // The ground is a grid of 16x16 pixel-art tiles (32 world units each). Each tile stores its
+  // region, its kind (see Pixel.tile) and a variant; the minimap is the same grid, one pixel per tile.
+  const TILE = Pixel.T * Pixel.ART;
+  function buildTiles(w) {
+    const tw = Math.ceil(WORLD_W / TILE), th = Math.ceil(WORLD_H / TILE);
+    const kinds = new Uint8Array(tw * th), biomes = new Uint8Array(tw * th), vars = new Uint8Array(tw * th);
     const ox = w.ph[0] * 50, oy = w.ph[1] * 50;
-    for (let py = 0; py < nh; py++) {
-      for (let px = 0; px < nw; px++) {
-        const x = px * TERRAIN_SCALE, y = py * TERRAIN_SCALE;
-        const large = Sprites.fbm(x * 0.0025 + ox, y * 0.0025 + oy);
-        const med = Sprites.fbm(x * 0.012 + oy, y * 0.012 + ox);
+    const mm = Pixel.canvas(tw, th), mg = mm.getContext('2d');
+    for (let ty = 0; ty < th; ty++) {
+      for (let tx = 0; tx < tw; tx++) {
+        const x = tx * TILE + TILE / 2, y = ty * TILE + TILE / 2, i = ty * tw + tx;
+        const large = Pixel.fbm(x * 0.0025 + ox, y * 0.0025 + oy), med = Pixel.fbm(x * 0.012 + oy, y * 0.012 + ox);
         // Ragged, natural-looking borders between regions.
-        const biome = biomeAt(x, y + (large - 0.5) * 140);
-        const pal = GROUND[biome];
-        let col = Sprites.mix(pal[0], pal[1], Math.min(1, Math.max(0, (large - 0.35) * 2.5)));
-        if (med > 0.68) col = Sprites.mix(col, pal[2], Math.min(1, (med - 0.68) * 4));
-        let v = (med - 0.5) * 18 + (Math.random() - 0.5) * 7;
-        if (biome === 'desert') v += Math.sin(x * 0.05 + y * 0.018 + large * 9) * 7;      // dune ripples
-        if (biome === 'tundra') col = Sprites.mix(col, [196, 212, 232], Math.max(0, (large - 0.6) * 1.5)); // blue drift shadows
-        const i = (py * nw + px) * 4;
-        img.data[i] = col[0] + v; img.data[i + 1] = col[1] + v; img.data[i + 2] = col[2] + v; img.data[i + 3] = 255;
+        const bi = regionIndexAt(x, y + (large - 0.5) * 140);
+        let kind = 0;
+        if (inCircles(w.ponds, x, y)) kind = 4;
+        else if (inCircles(w.ice, x, y)) kind = 5;
+        else if (dist(x, y, BASE.x, BASE.y) < BASE.r) kind = 6;
+        else if (med > 0.64) kind = 2;
+        else if (large > 0.56) kind = 1;
+        else if (Pixel.hash(tx, ty, 9) < 0.04) kind = 3;
+        kinds[i] = kind; biomes[i] = bi; vars[i] = (Pixel.hash(tx, ty) * 4) | 0;
+        mg.fillStyle = Pixel.tileColor(REGION_ORDER[bi], kind);
+        mg.fillRect(tx, ty, 1, 1);
       }
     }
-    g.putImageData(img, 0, 0);
-    const s = 1 / TERRAIN_SCALE;
-    for (const p of w.ponds) {
-      const wet = biomeAt(p.x, p.y) === 'wetlands';
-      const px = p.x * s, py = p.y * s, pr = p.r * s;
-      // damp shoreline
-      let gr = g.createRadialGradient(px, py, pr * 0.9, px, py, pr + 18 * s);
-      gr.addColorStop(0, wet ? 'rgba(70,90,50,0.9)' : 'rgba(150,120,70,0.9)');
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr;
-      g.beginPath(); g.arc(px, py, pr + 18 * s, 0, Math.PI * 2); g.fill();
-      // water, deeper in the middle
-      gr = g.createRadialGradient(px - pr * 0.2, py - pr * 0.2, pr * 0.1, px, py, pr);
-      gr.addColorStop(0, wet ? '#2c5e6a' : '#2f6f9a');
-      gr.addColorStop(0.7, wet ? '#3f7a7a' : '#3f8fbf');
-      gr.addColorStop(1, wet ? '#6f9a80' : '#7fb8cf');
-      g.fillStyle = gr;
-      g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
-    }
-    for (const p of w.ice) {
-      const px = p.x * s, py = p.y * s, pr = p.r * s;
-      const gr = g.createRadialGradient(px - pr * 0.3, py - pr * 0.3, 0, px, py, pr);
-      gr.addColorStop(0, '#e6f6ff'); gr.addColorStop(0.7, '#b9dff2'); gr.addColorStop(1, 'rgba(170,210,235,0.6)');
-      g.fillStyle = gr;
-      g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
-      // a few faint hairline cracks
-      g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 0.4;
-      for (let k = 0; k < 5; k++) {
-        g.beginPath();
-        let x = px + rand(-pr, pr) * 0.6, y = py + rand(-pr, pr) * 0.6;
-        g.moveTo(x, y);
-        for (let t = 0; t < 3; t++) { x += rand(-pr, pr) * 0.12; y += rand(-pr, pr) * 0.12; g.lineTo(x, y); }
-        g.stroke();
-      }
-    }
-    // Base camp: trampled dirt.
-    const gr = g.createRadialGradient(BASE.x * s, BASE.y * s, 0, BASE.x * s, BASE.y * s, BASE.r * s);
-    gr.addColorStop(0, '#a3845a'); gr.addColorStop(0.85, '#a88a5e'); gr.addColorStop(1, 'rgba(168,138,94,0)');
-    g.fillStyle = gr;
-    g.beginPath(); g.arc(BASE.x * s, BASE.y * s, BASE.r * s, 0, Math.PI * 2); g.fill();
-    return c;
+    w.tiles = { tw, th, kinds, biomes, vars };
+    w.minimap = mm;
   }
 
   function nearbyObstaclesIn(w, x, y) {
@@ -455,13 +397,13 @@ const Safari = (() => {
   function init(c) {
     canvas = c;
     ctx = c.getContext('2d');
+    view = Pixel.makeView(c);
   }
 
   function resize() {
-    const r = canvas.parentElement.getBoundingClientRect();
-    W = Math.max(1, r.width); H = Math.max(1, r.height);
-    canvas.width = Math.round(W * DPR);
-    canvas.height = Math.round(H * DPR);
+    view.resize(2);   // 2 CSS px per art pixel, so one world unit is one CSS pixel
+    W = view.W; H = view.H;
+    VW = view.w * Pixel.ART; VH = view.h * Pixel.ART;
   }
 
   function start(endCallback) {
@@ -629,8 +571,8 @@ const Safari = (() => {
     const lookX = j.x + j.vx * 0.35, lookY = j.y + j.vy * 0.35;
     S.cam.x = lerp(S.cam.x, lookX, Math.min(1, dt * 4));
     S.cam.y = lerp(S.cam.y, lookY, Math.min(1, dt * 4));
-    S.cam.x = clamp(S.cam.x, Math.min(W / 2, WORLD_W / 2), Math.max(WORLD_W - W / 2, WORLD_W / 2));
-    S.cam.y = clamp(S.cam.y, Math.min(H / 2, WORLD_H / 2), Math.max(WORLD_H - H / 2, WORLD_H / 2));
+    S.cam.x = clamp(S.cam.x, Math.min(VW / 2, WORLD_W / 2), Math.max(WORLD_W - VW / 2, WORLD_W / 2));
+    S.cam.y = clamp(S.cam.y, Math.min(VH / 2, WORLD_H / 2), Math.max(WORLD_H - VH / 2, WORLD_H / 2));
     S.shake = Math.max(0, S.shake - dt * 30);
 
     // Aiming & shooting
@@ -777,465 +719,356 @@ const Safari = (() => {
   }
 
   // ---------------- Rendering ----------------
+  // The world is drawn into a low-res buffer (one pixel per art pixel, A world units) and scaled
+  // up with crisp pixels. Text and the HUD are drawn on top at full resolution.
 
-  // A canvas tent seen from above: two roof halves, lit and shaded, with a ridge line.
-  function drawTent(x, y, size, rot, color) {
-    Sprites.shadow(ctx, x, y, size * 0.6, size * 0.45, 0.35, 0.3);
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(rot);
-    const w = size * 0.55, h = size * 0.4;
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.moveTo(-w, -h); ctx.lineTo(w, -h); ctx.lineTo(w, 0); ctx.lineTo(-w, 0); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.moveTo(-w, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h); ctx.lineTo(-w, h); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = color; ctx.globalAlpha = 0.75;
-    ctx.fillRect(-w, 0, w * 2, h);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-w - 4, 0); ctx.lineTo(w + 4, 0); ctx.stroke();
-    ctx.restore();
-  }
+  const A = Pixel.ART;
+  const CAMP_PROPS = [
+    { kind: 'tent', dx: -70, dy: -40, color: '#e0782c' },
+    { kind: 'tent', dx: 75, dy: -25, color: '#6b9a3a' },
+    { kind: 'flag', dx: 0, dy: -110 },
+    { kind: 'pump', dx: -90, dy: 60 },
+    { kind: 'sign', dx: 0, dy: 104, text: 'BASE CAMP' },
+  ];
 
-  function drawJeep(j) {
-    Sprites.shadow(ctx, j.x, j.y, 30, 20, 0.45, 0.3);
-    ctx.save();
-    ctx.translate(j.x, j.y);
-    ctx.rotate(j.angle);
-    // wheels with tread
-    for (const [wx, wy] of [[-17, -17], [11, -17], [-17, 11], [11, 11]]) {
-      ctx.fillStyle = '#1b1b1b';
-      ctx.fillRect(wx, wy, 12, 6);
-      ctx.fillStyle = '#3a3a3a';
-      for (let k = 1; k < 12; k += 3) ctx.fillRect(wx + k, wy, 1, 6);
+  function obstacleSprite(o) {
+    if (o.sprite) return o.sprite;
+    switch (o.kind) {
+      case 'acacia': o.sprite = Pixel.acacia(o.variant); break;
+      case 'broadleaf': o.sprite = Pixel.roundTree(Pixel.LEAF[o.biome === 'wetlands' ? 'wetlands' : 'broadleaf'][o.variant % 3]); break;
+      case 'jungle': o.sprite = Pixel.roundTree(Pixel.LEAF.jungle[o.variant % 3], 1.25); break;
+      case 'palm': o.sprite = o.biome === 'desert' ? Pixel.cactus(o.variant) : Pixel.palm(o.variant); break;
+      case 'pine': o.sprite = Pixel.pine(o.biome === 'tundra'); break;
+      default: o.sprite = Pixel.rock(Math.round(o.size * 0.55), o.tint, o.biome === 'tundra', o.variant % 3);
     }
-    // body with metallic shading
-    let gr = ctx.createLinearGradient(0, -13, 0, 13);
-    gr.addColorStop(0, '#7f9c52'); gr.addColorStop(0.5, '#5d7a3a'); gr.addColorStop(1, '#3f5626');
-    ctx.fillStyle = gr;
-    roundRect(-24, -13, 48, 26, 5); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1; ctx.stroke();
-    // open cargo bed at the back
-    ctx.fillStyle = '#4a3b26';
-    roundRect(-21, -10, 20, 20, 2); ctx.fill();
-    ctx.strokeStyle = '#2b2116'; ctx.lineWidth = 1;
-    for (let k = -18; k < 0; k += 4) { ctx.beginPath(); ctx.moveTo(k, -10); ctx.lineTo(k, 10); ctx.stroke(); }
-    // roll bar
-    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(-1, -12); ctx.lineTo(-1, 12); ctx.stroke();
-    // seats
-    ctx.fillStyle = '#3b2f22';
-    ctx.fillRect(1, -9, 6, 7); ctx.fillRect(1, 2, 6, 7);
-    // windshield with reflection
-    gr = ctx.createLinearGradient(8, -11, 13, 11);
-    gr.addColorStop(0, '#d8f2ff'); gr.addColorStop(0.4, '#8cc4dc'); gr.addColorStop(1, '#4f7f95');
-    ctx.fillStyle = gr;
-    ctx.fillRect(8, -11, 4, 22);
-    // hood with a centre crease
-    gr = ctx.createLinearGradient(12, -12, 24, 12);
-    gr.addColorStop(0, '#6f8f47'); gr.addColorStop(1, '#46602b');
-    ctx.fillStyle = gr;
-    roundRect(12, -12, 12, 24, 3); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(23, 0); ctx.stroke();
-    // headlights
-    ctx.fillStyle = '#fff6c8';
-    ctx.beginPath(); ctx.arc(23, -8, 2, 0, Math.PI * 2); ctx.arc(23, 8, 2, 0, Math.PI * 2); ctx.fill();
-    // spare tyre
-    ctx.fillStyle = '#1b1b1b';
-    ctx.beginPath(); ctx.arc(-25, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#555';
-    ctx.beginPath(); ctx.arc(-25, 0, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // Net launcher turret
-    ctx.save();
-    ctx.translate(j.x - Math.cos(j.angle) * 6, j.y - Math.sin(j.angle) * 6);
-    ctx.rotate(j.turret);
-    ctx.fillStyle = '#3a3a3a';
-    ctx.fillRect(0, -3.5, 22, 7);
-    ctx.fillStyle = '#555';
-    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    return o.sprite;
   }
+  const animalSize = (def) => clamp(Math.round(def.size * 0.66), 14, 40);
 
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function drawNet(x, y, r, rot, alpha = 1) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rot);
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = '#f4f4f4';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath();
-    for (let i = -1; i <= 1; i++) {
-      ctx.moveTo(i * r * 0.5, -r * 0.87); ctx.lineTo(i * r * 0.5, r * 0.87);
-      ctx.moveTo(-r * 0.87, i * r * 0.5); ctx.lineTo(r * 0.87, i * r * 0.5);
+  function drawTiles(g, ox, oy) {
+    const tl = S.world.tiles, TT = Pixel.T, tw = tl.tw;
+    const tx0 = Math.max(0, Math.floor(ox / TT)), ty0 = Math.max(0, Math.floor(oy / TT));
+    const tx1 = Math.min(tw - 1, Math.floor((ox + view.w) / TT)), ty1 = Math.min(tl.th - 1, Math.floor((oy + view.h) / TT));
+    const frame = Math.floor(S.t * 4) % 6, sway = Math.floor(S.t * 1.6) % 2;
+    const kindAt = (x, y) => (x < 0 || y < 0 || x >= tw || y >= tl.th) ? -1 : tl.kinds[y * tw + x];
+    for (let ty = ty0; ty <= ty1; ty++) {
+      for (let tx = tx0; tx <= tx1; tx++) {
+        const i = ty * tw + tx, kind = tl.kinds[i];
+        const px = tx * TT - ox, py = ty * TT - oy;
+        g.drawImage(Pixel.tile(REGION_ORDER[tl.biomes[i]], kind, tl.vars[i], kind === 4 ? frame : sway), px, py);
+        if (kind === 4 || kind === 5) {
+          // foam / frost where water and ice meet land
+          g.fillStyle = kind === 4 ? '#e8f8ff' : '#ffffff';
+          if (kindAt(tx, ty - 1) !== kind) g.fillRect(px, py, TT, 1);
+          if (kindAt(tx, ty + 1) !== kind) g.fillRect(px, py + TT - 1, TT, 1);
+          if (kindAt(tx - 1, ty) !== kind) g.fillRect(px, py, 1, TT);
+          if (kindAt(tx + 1, ty) !== kind) g.fillRect(px + TT - 1, py, 1, TT);
+        } else if (kind === 6) {
+          g.fillStyle = '#a88050';
+          if (kindAt(tx, ty - 1) !== 6) g.fillRect(px, py, TT, 1);
+          if (kindAt(tx, ty + 1) !== 6) g.fillRect(px, py + TT - 1, TT, 1);
+          if (kindAt(tx - 1, ty) !== 6) g.fillRect(px, py, 1, TT);
+          if (kindAt(tx + 1, ty) !== 6) g.fillRect(px + TT - 1, py, 1, TT);
+        }
+      }
     }
-    ctx.stroke();
-    ctx.fillStyle = '#c0392b';
-    for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2 + Math.PI / 4;
-      ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 2.5, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
   }
 
   function render() {
     if (!S) return;
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#2b3a22';
-    ctx.fillRect(0, 0, W, H);
+    const g = view.g;
+    const shx = S.shake ? rand(-S.shake, S.shake) : 0, shy = S.shake ? rand(-S.shake, S.shake) : 0;
+    const camX = S.cam.x - VW / 2 + shx, camY = S.cam.y - VH / 2 + shy;   // world position of the view's top-left
+    const ox = Math.round(camX / A), oy = Math.round(camY / A);
+    const X = (wx) => Math.round(wx / A) - ox, Y = (wy) => Math.round(wy / A) - oy;
+    const css = view.css, labels = [];
+    const toScreen = (wx, wy) => [(Math.round(wx / A) - ox) * css, (Math.round(wy / A) - oy) * css];
+    const vis = (x, y) => x > camX - 120 && x < camX + VW + 120 && y > camY - 40 && y < camY + VH + 140;
 
-    const sx = S.shake ? rand(-S.shake, S.shake) : 0, sy = S.shake ? rand(-S.shake, S.shake) : 0;
-    const camX = S.cam.x - W / 2 + sx, camY = S.cam.y - H / 2 + sy;
-    ctx.save();
-    ctx.translate(-camX, -camY);
-
-    // Terrain
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(S.world.terrain, 0, 0, WORLD_W, WORLD_H);
-    // Fine grain so the ground stays crisp up close.
-    if (!S.grain) S.grain = Sprites.grainPattern(ctx);
-    ctx.fillStyle = S.grain;
-    ctx.fillRect(camX, camY, W, H);
-
-    const vis = (x, y, m = 80) => x > camX - m && x < camX + W + m && y > camY - m && y < camY + H + m;
-
-    // Water shimmer
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1.5;
-    for (const p of S.world.ponds) {
-      if (!vis(p.x, p.y, p.r)) continue;
-      for (let k = 0; k < 3; k++) {
-        const ph = S.t * 0.6 + k * 2.1 + p.x * 0.01;
-        const rx = p.x + Math.cos(ph) * p.r * 0.4, ry = p.y + Math.sin(ph * 0.7) * p.r * 0.35;
-        ctx.beginPath(); ctx.arc(rx, ry, p.r * 0.18, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
-      }
-    }
-
-    for (const d of S.world.decor) if (vis(d.x, d.y)) Sprites.draw(ctx, Sprites.makeDetail(d.kind, d.seed), d.x, d.y, d.size);
-
-    // Shadows of trees and rocks (drawn on the ground, under animals and the jeep)
-    for (const o of S.world.obstacles) {
-      if (o.dead || !vis(o.x, o.y, o.draw)) continue;
-      const rr = o.kind === 'rock' ? o.draw * 0.5 : o.draw * 0.48;
-      Sprites.shadow(ctx, o.x, o.y, rr, rr * 0.85, o.kind === 'rock' ? 0.4 : 0.32, o.kind === 'rock' ? 0.22 : 0.35);
-    }
-
-    // Base camp
-    drawTent(BASE.x - 70, BASE.y - 40, 64, 0.15, '#c96b2c');
-    drawTent(BASE.x + 75, BASE.y - 25, 56, -0.2, '#6b8a3a');
-    drawEmoji(ctx, '🚩', BASE.x, BASE.y - 110, 36);
-    drawEmoji(ctx, '⛽', BASE.x - 90, BASE.y + 60, 30);
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('BASE CAMP', BASE.x, BASE.y + 110);
-
-    // Particles (ground layer)
-    for (const p of S.particles) {
-      ctx.globalAlpha = 1 - p.t / p.life;
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // Animals
-    for (const a of S.animals) {
-      if (!vis(a.x, a.y)) continue;
-      const def = a.def;
-      Sprites.shadow(ctx, a.x + def.size * 0.06, a.y + def.size * 0.34, def.size * 0.42, def.size * 0.16, 0.38, 0.3);
-      const bob = a.spd > 20 ? Math.abs(Math.sin(a.bob)) * 4 : Math.sin(a.bob) * 0.8;
-      const fly = def.flies ? 10 : 0;
-      const wiggle = a.state === 'tangled' ? Math.sin(S.t * 30) * 2 : 0;
-      drawEmoji(ctx, def.emoji, a.x + wiggle, a.y - bob - fly, def.size, a.facing < 0);
-      if (a.state === 'tangled') {
-        drawNet(a.x, a.y - fly, def.size * 0.55, 0.3);
-        // escape timer ring
-        const frac = a.tangleT / a.tangleMax;
-        ctx.strokeStyle = frac > 0.35 ? '#ffe14d' : '#ff5c5c';
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(a.x, a.y - fly, def.size * 0.7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
-      } else if (a.netHits > 0.01) {
-        // partial net progress bar
-        const w = def.size * 0.9, frac = Math.min(1, a.netHits / def.hp);
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(a.x - w / 2, a.y - def.size * 0.75, w, 5);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(a.x - w / 2, a.y - def.size * 0.75, w * frac, 5);
-      }
-      if (a.state === 'charge') drawEmoji(ctx, '💢', a.x + def.size * 0.4, a.y - def.size * 0.6, 16);
-    }
-
-    // Resource nodes (gold ring so they stand out from scenery)
-    for (const r of S.world.resources) {
-      if (r.taken || !vis(r.x, r.y)) continue;
-      const pulse = 0.5 + 0.5 * Math.sin(S.t * 4 + r.phase);
-      ctx.strokeStyle = `rgba(255,214,90,${0.5 + 0.4 * pulse})`;
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(r.x, r.y, 20 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
-      drawEmoji(ctx, RESOURCES[r.res].emoji, r.x, r.y - 2 - pulse * 2, 28);
-    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#304828';
+    g.fillRect(0, 0, view.w, view.h);
+    drawTiles(g, ox, oy);
 
     // Missed nets lying on the ground
-    for (const g of S.groundNets) if (vis(g.x, g.y)) drawNet(g.x, g.y, 10, g.rot, 0.75);
+    for (const n of S.groundNets) if (vis(n.x, n.y)) Pixel.drawAt(g, Pixel.netSprite(11), X(n.x), Y(n.y) + 5, 0.85);
 
+    // Auto-aim cone
+    if (S.stats.aimCone > 0) {
+      const j = S.jeep, c = S.stats.aimCone, r = S.stats.netRange / A;
+      g.fillStyle = 'rgba(255,240,120,0.1)';
+      g.beginPath(); g.moveTo(X(j.x), Y(j.y)); g.arc(X(j.x), Y(j.y), r, j.angle - c, j.angle + c); g.closePath(); g.fill();
+    }
+
+    // Everything that stands up is sorted by its base so nearer things overlap farther ones.
+    const items = [];
+    for (const o of S.world.obstacles) if (!o.dead && vis(o.x, o.y)) items.push({ y: o.y, o });
+    for (const a of S.animals) if (vis(a.x, a.y)) items.push({ y: a.y + a.def.size * 0.3, a });
+    for (const r of S.world.resources) if (!r.taken && vis(r.x, r.y)) items.push({ y: r.y, r });
+    for (const p of CAMP_PROPS) if (vis(BASE.x + p.dx, BASE.y + p.dy)) items.push({ y: BASE.y + p.dy, p });
+    items.push({ y: S.jeep.y, jeep: true });
+    // Region signposts on the track north
+    for (let k = 0; k < REGION_ORDER.length - 1; k++) {
+      const sx = BASE.x + 80, sy = boundaryY(k, sx) + 50;
+      if (vis(sx, sy)) items.push({ y: sy, sign: { x: sx, y: sy, text: `↑ ${BIOMES[REGION_ORDER[k + 1]].icon} ${BIOMES[REGION_ORDER[k + 1]].name}` } });
+    }
     // Ranger fence at the first region you don't have a permit for
     const lastOpen = Game.s.tier - 1;
     if (lastOpen < REGION_ORDER.length - 1) {
-      const fx0 = Math.max(0, Math.floor((camX - 40) / 30) * 30), fx1 = Math.min(WORLD_W, camX + W + 40);
-      if (vis(camX + W / 2, boundaryY(lastOpen, camX + W / 2), H)) {
-        ctx.strokeStyle = '#d9822b';
-        ctx.lineWidth = 4;
-        for (const off of [-14, -4]) {
-          ctx.beginPath();
-          for (let x = fx0; x <= fx1; x += 30) {
-            const y = boundaryY(lastOpen, x) + off;
-            if (x === fx0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          }
-          ctx.stroke();
-        }
-        ctx.fillStyle = '#6b4a2a';
-        for (let x = fx0; x <= fx1; x += 60) ctx.fillRect(x - 3, boundaryY(lastOpen, x) - 24, 6, 28);
-        const next = BIOMES[REGION_ORDER[lastOpen + 1]];
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 13px system-ui, sans-serif';
-        for (let x = Math.floor(fx0 / 500) * 500 + 250; x <= fx1; x += 500) {
-          const y = boundaryY(lastOpen, x);
-          drawEmoji(ctx, '🚧', x, y - 34, 30);
-          ctx.fillStyle = 'rgba(20,28,18,0.75)';
-          ctx.fillRect(x - 90, y + 6, 180, 22);
-          ctx.fillStyle = '#ffe680';
-          ctx.fillText(`${next.icon} ${next.name}: tier ${lastOpen + 2} permit`, x, y + 22);
-        }
+      const step = 32, fx0 = Math.max(0, Math.floor((camX - 60) / step) * step), fx1 = Math.min(WORLD_W, camX + VW + 60);
+      for (let x = fx0; x <= fx1; x += step) {
+        const y = boundaryY(lastOpen, x);
+        if (y > camY - 40 && y < camY + VH + 60) items.push({ y, post: { x, y, nx: x + step, ny: boundaryY(lastOpen, x + step) } });
+      }
+      for (let x = Math.floor(fx0 / 500) * 500 + 250; x <= fx1; x += 500) {
+        const y = boundaryY(lastOpen, x) + 6;
+        if (y > camY - 40 && y < camY + VH + 60) items.push({ y, barrier: { x, y } });
+      }
+    }
+    items.sort((p, q) => p.y - q.y);
+
+    // Shadows first, so they never fall on top of a neighbour's sprite.
+    for (const it of items) {
+      if (it.o) { const s = obstacleSprite(it.o); Pixel.drawShadow(g, X(it.o.x) + 2, Y(it.o.y) + (it.o.kind === 'rock' ? 3 : 4), s.width * (it.o.kind === 'rock' ? 0.9 : 0.7)); }
+      else if (it.a) Pixel.drawShadow(g, X(it.a.x) + 1, Y(it.y), animalSize(it.a.def) * 0.7);
+      else if (it.jeep) Pixel.drawShadow(g, X(S.jeep.x) + 1, Y(S.jeep.y) + 2, 30);
+      else if (it.r) Pixel.drawShadow(g, X(it.r.x), Y(it.r.y) + 1, 12);
+      else if (it.p && it.p.kind === 'tent') Pixel.drawShadow(g, X(BASE.x + it.p.dx) + 2, Y(BASE.y + it.p.dy), 30);
+    }
+
+    const j = S.jeep;
+    for (const it of items) {
+      if (it.o) {
+        const o = it.o, s = obstacleSprite(o), isTree = o.kind !== 'rock';
+        const bx = X(o.x), by = Y(o.y) + (isTree ? 4 : Math.round(s.height * 0.4));
+        // Canopies go see-through when the jeep is hidden behind them.
+        const hides = isTree && j.y < o.y && j.y > o.y - s.height * A && Math.abs(j.x - o.x) < s.width * A * 0.5;
+        Pixel.drawAt(g, s, bx, by, hides ? 0.5 : 1);
+      } else if (it.a) drawAnimal(g, it.a, X, Y);
+      else if (it.r) {
+        const r = it.r, glint = Math.floor(S.t * 2 + r.phase) % 3 === 0;
+        Pixel.ring(g, X(r.x), Y(r.y) + 1, 10 + (Math.floor(S.t * 3 + r.phase) % 2), 5, '#f8d848', true);
+        Pixel.drawAt(g, Pixel.resource(r.res, glint ? 1 : 0), X(r.x), Y(r.y) + 2 - (Math.sin(S.t * 4 + r.phase) > 0 ? 1 : 0));
+      } else if (it.jeep) drawJeep(g, X, Y);
+      else if (it.p) {
+        const p = it.p, x = X(BASE.x + p.dx), y = Y(BASE.y + p.dy);
+        if (p.kind === 'tent') Pixel.drawAt(g, Pixel.tent(p.color), x, y + 4);
+        else if (p.kind === 'flag') Pixel.drawAt(g, Pixel.flag(Math.floor(S.t * 3) % 2), x + 6, y + 4);
+        else if (p.kind === 'pump') Pixel.drawAt(g, Pixel.pump(), x, y + 4);
+        else if (p.kind === 'sign') { Pixel.drawAt(g, Pixel.board(44), x, y + 4); labels.push({ wx: BASE.x + p.dx, wy: BASE.y + p.dy - 22, text: p.text, size: 11, color: '#3a2410', plain: true }); }
+      } else if (it.sign) {
+        const s = it.sign;
+        Pixel.drawAt(g, Pixel.board(62), X(s.x), Y(s.y) + 4);
+        labels.push({ wx: s.x, wy: s.y - 22, text: s.text, size: 11, color: '#3a2410', plain: true });
+      } else if (it.post) {
+        const p = it.post;
+        Pixel.line(g, X(p.x), Y(p.y) - 9, X(p.nx), Y(p.ny) - 9, '#e08a30', 1);
+        Pixel.line(g, X(p.x), Y(p.y) - 5, X(p.nx), Y(p.ny) - 5, '#e08a30', 1);
+        Pixel.drawAt(g, Pixel.fencePost('#8a5f37'), X(p.x), Y(p.y) + 1);
+      } else if (it.barrier) {
+        const b = it.barrier, next = BIOMES[REGION_ORDER[lastOpen + 1]];
+        Pixel.drawAt(g, Pixel.barrier(), X(b.x), Y(b.y) + 2);
+        labels.push({ wx: b.x, wy: b.y + 26, text: `${next.icon} ${next.name}: tier ${lastOpen + 2} permit`, size: 12, color: '#ffe680', panel: true });
       }
     }
 
-    // Region signposts on the track north
-    ctx.textAlign = 'center';
-    for (let k = 0; k < REGION_ORDER.length - 1; k++) {
-      const sx = BASE.x + 80, sy = boundaryY(k, sx) + 50;
-      if (!vis(sx, sy, 200)) continue;
-      const next = BIOMES[REGION_ORDER[k + 1]];
-      ctx.fillStyle = '#6b4a2a';
-      ctx.fillRect(sx - 3, sy - 6, 6, 40);
-      ctx.fillStyle = '#8a5f35';
-      ctx.fillRect(sx - 70, sy - 36, 140, 32);
-      ctx.fillStyle = '#ffeec2';
-      ctx.font = 'bold 14px system-ui, sans-serif';
-      ctx.fillText(`↑ ${next.icon} ${next.name}`, sx, sy - 15);
+    // Particles (dust, debris, sparkles)
+    for (const p of S.particles) {
+      const s = Math.max(1, Math.round(p.r / A * (1 - p.t / p.life * 0.5)));
+      g.globalAlpha = p.t / p.life > 0.6 ? 0.5 : 1;
+      g.fillStyle = p.color;
+      g.fillRect(X(p.x) - (s >> 1), Y(p.y) - (s >> 1), s, s);
+    }
+    g.globalAlpha = 1;
+
+    // Nets in flight, with their shadows on the ground
+    for (const n of S.nets) {
+      const s = Pixel.netSprite(9 + n.traveled / n.max * 4), lift = 6 + Math.round(Math.sin(Math.min(1, n.traveled / n.max) * Math.PI) * 4);
+      Pixel.drawShadow(g, X(n.x), Y(n.y), 8);
+      Pixel.drawAt(g, s, X(n.x), Y(n.y) - lift + (s.height >> 1));
     }
 
-    // Auto-aim cone and target lock
-    if (S.stats.aimCone > 0) {
-      const j = S.jeep, c = S.stats.aimCone, r = S.stats.netRange;
-      ctx.fillStyle = 'rgba(255,240,120,0.07)';
-      ctx.strokeStyle = 'rgba(255,240,120,0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(j.x, j.y);
-      ctx.arc(j.x, j.y, r, j.angle - c, j.angle + c);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
-    }
-    if (S.target) {
-      const a = S.target, rr = a.def.size * 0.6 + 4;
-      ctx.strokeStyle = '#ff4d4d';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath();
-      for (const k of [0, 1, 2, 3]) {
-        const ang = k * Math.PI / 2 + S.t * 2;
-        ctx.moveTo(a.x + Math.cos(ang) * (rr - 6), a.y + Math.sin(ang) * (rr - 6));
-        ctx.lineTo(a.x + Math.cos(ang) * (rr + 6), a.y + Math.sin(ang) * (rr + 6));
+    // Auto-aim target lock: blinking corner brackets
+    if (S.target && Math.floor(S.t * 6) % 3) {
+      const a = S.target, h = animalSize(a.def), cx = X(a.x), cy = Y(a.y + a.def.size * 0.3) - (h >> 1), r = (h >> 1) + 3;
+      g.fillStyle = '#ff4d4d';
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        g.fillRect(cx + sx * r - (sx > 0 ? 3 : 0), cy + sy * r - (sy > 0 ? 0 : 0), 4, 1);
+        g.fillRect(cx + sx * r - (sx > 0 ? 0 : 0), cy + sy * r - (sy > 0 ? 3 : 0), 1, 4);
       }
-      ctx.stroke();
     }
-
-    // Nets in flight
-    for (const n of S.nets) drawNet(n.x, n.y, 9 + n.traveled / n.max * 7, n.rot);
-
-    drawJeep(S.jeep);
-
-    // Trees & rocks on top (so you can hide under the canopy)
-    for (const o of S.world.obstacles) {
-      if (o.dead || !vis(o.x, o.y)) continue;
-      // Canopies go see-through when the jeep drives underneath.
-      const nearJeep = o.kind !== 'rock' && dist(o.x, o.y, S.jeep.x, S.jeep.y) < o.draw * 0.45;
-      const sprite = o.kind === 'rock' ? Sprites.makeRock(Math.round(o.draw), o.tint, o.variant, o.biome === 'tundra') : Sprites.makeTree(o.kind, Math.round(o.draw), o.variant);
-      Sprites.draw(ctx, sprite, o.x, o.y, o.draw * (o.kind === 'rock' ? 1.2 : 1.3), nearJeep ? 0.45 : 1);
-    }
-
-    // Floating texts
-    ctx.textAlign = 'center';
-    for (const f of S.floats) {
-      ctx.globalAlpha = 1 - f.t / f.life;
-      ctx.font = `bold ${f.size}px system-ui, sans-serif`;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.strokeText(f.text, f.x, f.y);
-      ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x, f.y);
-    }
-    ctx.globalAlpha = 1;
 
     // Arrow back to base when far away
-    const bd = dist(S.jeep.x, S.jeep.y, BASE.x, BASE.y);
+    const bd = dist(j.x, j.y, BASE.x, BASE.y);
     if (bd > 500) {
-      const ang = Math.atan2(BASE.y - S.jeep.y, BASE.x - S.jeep.x);
-      const lowFuel = S.fuel < 15;
-      ctx.save();
-      ctx.translate(S.jeep.x + Math.cos(ang) * 60, S.jeep.y + Math.sin(ang) * 60);
-      ctx.rotate(ang);
-      ctx.fillStyle = lowFuel ? `rgba(255,80,80,${0.6 + 0.4 * Math.sin(S.t * 10)})` : 'rgba(255,255,255,0.6)';
-      ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-6, -8); ctx.lineTo(-2, 0); ctx.lineTo(-6, 8); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      const ang = Math.atan2(BASE.y - j.y, BASE.x - j.x), idx = ((Math.round(ang / (Math.PI * 2) * 16) % 16) + 16) % 16;
+      const blink = S.fuel < 15 ? Math.floor(S.t * 6) % 2 : 1;
+      if (blink) Pixel.drawAt(g, Pixel.arrow(idx), X(j.x) + Math.cos(ang) * 32, Y(j.y) - 6 + Math.sin(ang) * 26 + 8, S.fuel < 15 ? 1 : 0.75);
     }
 
-    ctx.restore();
-    Sprites.vignette(ctx, W, H);
+    view.present(ctx);
+
+    // Full-resolution text on top
+    for (const l of labels) {
+      const [sx, sy] = toScreen(l.wx, l.wy);
+      if (l.panel) {
+        ctx.font = Pixel.font(l.size);
+        const w = ctx.measureText(l.text).width + 20;
+        Pixel.panel(ctx, sx - w / 2, sy - l.size, w, l.size * 2, 0.8);
+        Pixel.text(ctx, l.text, sx, sy, { size: l.size, color: l.color, outline: null });
+      } else Pixel.text(ctx, l.text, sx, sy, { size: l.size * Math.min(1.2, css / 2 + 0.2), color: l.color, outline: l.plain ? null : undefined, weight: 700 });
+    }
+    for (const f of S.floats) {
+      const [sx, sy] = toScreen(f.x, f.y);
+      ctx.globalAlpha = 1 - f.t / f.life;
+      Pixel.text(ctx, f.text, sx, sy, { size: f.size, color: f.color, weight: 700 });
+    }
+    ctx.globalAlpha = 1;
     renderHUD();
   }
 
-  function panel(x, y, w, h) {
-    ctx.fillStyle = 'rgba(20,28,18,0.72)';
-    roundRect(x, y, w, h, 10);
-    ctx.fill();
+  function drawAnimal(g, a, X, Y) {
+    const def = a.def, size = animalSize(def);
+    const s = Pixel.animal(def.key, size, a.facing < 0);
+    const hop = a.spd > 20 ? (Math.sin(a.bob) > 0 ? 1 : 0) : 0;
+    const fly = def.flies ? 5 : 0;
+    const wiggle = a.state === 'tangled' ? (Math.floor(S.t * 20) % 2 ? 1 : -1) : 0;
+    const bx = X(a.x) + wiggle, by = Y(a.y + def.size * 0.3) - hop - fly;
+    if (s) Pixel.drawAt(g, s, bx, by + 1);
+    else { g.fillStyle = '#a08060'; g.fillRect(bx - 4, by - 8, 8, 8); }
+    const top = by - size;
+    const bar = (frac, color) => {
+      const w = Math.max(10, size - 4);
+      g.fillStyle = '#181820'; g.fillRect(bx - (w >> 1) - 1, top - 4, w + 2, 4);
+      g.fillStyle = color; g.fillRect(bx - (w >> 1), top - 3, Math.round(w * clamp(frac, 0, 1)), 2);
+    };
+    if (a.state === 'tangled') {
+      const n = Pixel.netSprite(size * 0.9);
+      Pixel.drawAt(g, n, bx, by - (size - n.height) / 2);
+      const frac = a.tangleT / a.tangleMax;
+      bar(frac, frac > 0.35 ? '#f8d848' : (Math.floor(S.t * 8) % 2 ? '#f84848' : '#a82828'));
+    } else if (a.netHits > 0.01) bar(a.netHits / def.hp, '#f8f8f8');
+    if (a.state === 'charge') Pixel.drawAt(g, Pixel.anger(), bx + (size >> 1), top + 2);
   }
+
+  function drawJeep(g, X, Y) {
+    const j = S.jeep, s = Pixel.jeep(j.angle);
+    const bump = Math.abs(j.speed) > 60 && Math.floor(S.t * 12) % 2 ? 1 : 0;
+    const x = X(j.x), y = Y(j.y) - bump;
+    g.drawImage(s, x - s.anchorX, y - s.anchorY);
+    // Net launcher turret on the back
+    const px = X(j.x - Math.cos(j.angle) * 10), py = Y(j.y - Math.sin(j.angle) * 10) - 9 - bump;
+    const ex = px + Math.cos(j.turret) * 8, ey = py + Math.sin(j.turret) * 6;
+    Pixel.line(g, px, py + 1, ex, ey + 1, '#181820', 2);
+    Pixel.line(g, px, py, ex, ey, '#606068', 2);
+    g.fillStyle = '#181820'; g.fillRect(px - 2, py - 2, 5, 5);
+    g.fillStyle = '#808088'; g.fillRect(px - 1, py - 1, 3, 3);
+  }
+
+  // ---------------- HUD ----------------
 
   function renderHUD() {
     const st = S.stats;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
-    // Top-left: fuel + cargo
-    const cargoW = Math.max(240, st.cargoMax * 30 + 34);
-    panel(12, 12, cargoW, st.autoFire ? 208 : 186);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 15px system-ui, sans-serif';
     const reg = BIOMES[REGION_ORDER[S.region]];
-    ctx.fillText(`Day ${Game.s.day} — ${reg.icon} ${reg.name}`, 24, 30);
-    // fuel bar
-    const fFrac = clamp(S.fuel / st.fuelMax, 0, 1);
-    ctx.fillText('⛽', 22, 56);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(46, 48, cargoW - 100, 16);
-    ctx.fillStyle = fFrac > 0.3 ? '#7bd36b' : (Math.sin(S.t * 10) > 0 ? '#ff5050' : '#a83232');
-    ctx.fillRect(46, 48, (cargoW - 100) * fFrac, 16);
-    ctx.fillStyle = '#fff';
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText(`${Math.ceil(S.fuel)}s`, cargoW - 46, 56);
-    // health bar
-    const hFrac = clamp(S.hp / st.hpMax, 0, 1);
-    ctx.fillText('❤️', 22, 78);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(46, 70, cargoW - 100, 16);
-    ctx.fillStyle = hFrac > 0.3 ? '#e0605a' : (Math.sin(S.t * 10) > 0 ? '#ff3030' : '#8a2020');
-    ctx.fillRect(46, 70, (cargoW - 100) * hFrac, 16);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${Math.ceil(S.hp)}`, cargoW - 46, 78);
-    // cargo slots
-    for (let i = 0; i < st.cargoMax; i++) {
-      const x = 36 + i * 30, y = 106;
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x - 12, y - 12, 25, 25);
-      if (S.cargo[i]) drawEmoji(ctx, SPECIES[S.cargo[i]].emoji, x + 0.5, y + 0.5, 20);
-    }
-    // nets left
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillStyle = S.netsLeft > 0 ? '#fff' : '#ff7070';
-    ctx.fillText(`🕸️ Nets: ${S.netsLeft} / ${st.nets}`, 24, 138);
-    if (S.reloadT > 0 && S.netsLeft > 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillRect(150, 134, 60 * clamp(S.reloadT / st.reload, 0, 1), 6);
-    }
+    const nHearts = Math.ceil(st.hpMax / 20), perRow = 10;
+    const pw = Math.max(220, Math.min(nHearts, perRow) * 18 + 28, st.cargoMax * 26 + 28);
+    const heartRows = Math.ceil(nHearts / perRow);
+    const x0 = 26;
+    let y = 26;
+    Pixel.panel(ctx, 12, 12, pw, 14 + 20 + heartRows * 18 + 26 + 30 + 26 + (st.autoFire ? 20 : 0) + 24 + 22, 0.82);
 
-    if (st.autoFire) {
-      ctx.font = 'bold 12px system-ui, sans-serif';
-      ctx.fillStyle = Game.s.autoFireOn ? '#8be07a' : 'rgba(255,255,255,0.55)';
-      ctx.fillText(`📡 Auto-fire: ${Game.s.autoFireOn ? 'ON' : 'OFF'}${TouchControls.enabled ? '' : '  (F to toggle)'}`, 24, 160);
+    Pixel.text(ctx, `Day ${Game.s.day} · ${reg.icon} ${reg.name}`, x0, y, { size: 14, align: 'left', outline: null, color: '#f8e8b0' });
+    y += 14;
+    // Hearts: one heart per 20 health
+    for (let i = 0; i < nHearts; i++) {
+      const hp = S.hp - i * 20, state = hp >= 15 ? 2 : hp >= 5 ? 1 : 0;
+      Pixel.blit(ctx, Pixel.heart(state), x0 + (i % perRow) * 18, y + Math.floor(i / perRow) * 18, 2);
     }
-    // zoo earnings ticking up while you're away
-    ctx.font = 'bold 13px system-ui, sans-serif';
-    ctx.fillStyle = '#f2c94c';
-    ctx.fillText(`💰 Cargo worth: ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, 24, st.autoFire ? 182 : 160);
+    y += heartRows * 18 + 6;
+    // Fuel gauge
+    Pixel.blit(ctx, Pixel.fuel(), x0, y, 2);
+    const fFrac = clamp(S.fuel / st.fuelMax, 0, 1), bw = pw - 96, bx = x0 + 26;
+    ctx.fillStyle = '#f4f0e0'; ctx.fillRect(bx, y + 4, bw + 4, 14);
+    ctx.fillStyle = '#181820'; ctx.fillRect(bx + 2, y + 6, bw, 10);
+    ctx.fillStyle = fFrac > 0.3 ? '#58d048' : fFrac > 0.15 ? '#f8c838' : (Math.sin(S.t * 10) > 0 ? '#f84848' : '#a82828');
+    ctx.fillRect(bx + 2, y + 6, Math.round(bw * fFrac), 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(bx + 2, y + 6, Math.round(bw * fFrac), 2);
+    Pixel.text(ctx, `${Math.ceil(S.fuel)}s`, bx + bw + 10, y + 11, { size: 13, align: 'left', outline: null });
+    y += 26;
+    // Cargo cage slots
+    for (let i = 0; i < st.cargoMax; i++) {
+      const sx = x0 + i * 26;
+      ctx.fillStyle = 'rgba(244,240,224,0.5)'; ctx.fillRect(sx, y, 24, 24);
+      ctx.fillStyle = '#101638'; ctx.fillRect(sx + 2, y + 2, 20, 20);
+      if (S.cargo[i]) Pixel.blit(ctx, Pixel.animal(S.cargo[i], 18, false), sx + 2, y + 2, 1);
+    }
+    y += 30;
+    // Nets
+    Pixel.blit(ctx, Pixel.netSprite(9), x0 - 1, y - 2, 2);
+    Pixel.text(ctx, `${S.netsLeft} / ${st.nets}`, x0 + 28, y + 9, { size: 14, align: 'left', outline: null, color: S.netsLeft > 0 ? '#fff' : '#ff7070' });
+    if (S.reloadT > 0 && S.netsLeft > 0) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x0 + 100, y + 6, 60 * clamp(S.reloadT / st.reload, 0, 1), 6); }
+    y += 26;
+    if (st.autoFire) {
+      Pixel.text(ctx, `Auto-fire: ${Game.s.autoFireOn ? 'ON' : 'OFF'}${TouchControls.enabled ? '' : '  (F)'}`, x0, y + 4, { size: 13, align: 'left', outline: null, color: Game.s.autoFireOn ? '#8be07a' : 'rgba(255,255,255,0.6)' });
+      y += 20;
+    }
+    // Cargo value and gathered resources
+    Pixel.blit(ctx, Pixel.rupee(), x0 + 2, y - 2, 2);
+    Pixel.text(ctx, `Cargo worth ${fmtMoney(S.cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0))}`, x0 + 26, y + 10, { size: 14, align: 'left', outline: null, color: '#f8d848' });
+    y += 24;
     const got = Object.entries(S.gathered).filter(([, v]) => v > 0).map(([k, v]) => `${RESOURCES[k].emoji} ${v}`).join('  ');
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`Gathered: ${got || 'nothing yet'}`, 24, st.autoFire ? 204 : 182);
+    Pixel.text(ctx, `Gathered: ${got || 'nothing yet'}`, x0, y + 8, { size: 13, align: 'left', outline: null });
 
     // Minimap (top-right)
-    const mmH = Math.min(300, H * 0.5, (W - 290) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
-    const mx = W - mmW - 12, my = 12;
-    panel(mx - 4, my - 4, mmW + 8, mmH + 8);
-    ctx.drawImage(S.world.terrain, mx, my, mmW, mmH);
-    // region icons down the left edge of the minimap
+    const mmH = Math.min(W < 600 ? 170 : 300, H * 0.5, (W - pw - 70) * WORLD_H / WORLD_W), ms = mmH / WORLD_H, mmW = WORLD_W * ms;
+    const mx = Math.round(W - mmW - 18), my = 18;
+    Pixel.panel(ctx, mx - 6, my - 6, mmW + 12, mmH + 12, 1);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(S.world.minimap, mx, my, mmW, mmH);
     for (let k = 0; k < REGION_ORDER.length; k++) {
       const b = REGION_ORDER[k];
       const cy = my + (regionTop(k) + BAND / 2) * ms;
       const known = Game.s.regionsVisited[b] || S.regionsVisited.has(b);
-      drawEmoji(ctx, known ? BIOMES[b].icon : '❔', mx - 16, cy, 16);
+      drawEmoji(ctx, known ? BIOMES[b].icon : '❔', mx - 18, cy, 16);
     }
-    ctx.fillStyle = '#8b5a2b';
-    ctx.beginPath(); ctx.arc(mx + BASE.x * ms, my + BASE.y * ms, 5, 0, Math.PI * 2); ctx.fill();
-    for (const a of S.animals) {
-      if (a.state !== 'tangled') continue;
-      ctx.fillStyle = '#ffe14d';
-      ctx.fillRect(mx + a.x * ms - 2, my + a.y * ms - 2, 4, 4);
-    }
-    ctx.fillStyle = '#ff3b3b';
-    ctx.beginPath(); ctx.arc(mx + S.jeep.x * ms, my + S.jeep.y * ms, 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(mx + (S.cam.x - W / 2) * ms, my + (S.cam.y - H / 2) * ms, W * ms, H * ms);
+    ctx.fillStyle = '#6a3a18'; ctx.fillRect(Math.round(mx + BASE.x * ms) - 3, Math.round(my + BASE.y * ms) - 3, 6, 6);
+    ctx.fillStyle = '#f8d848';
+    for (const a of S.animals) if (a.state === 'tangled') ctx.fillRect(Math.round(mx + a.x * ms) - 2, Math.round(my + a.y * ms) - 2, 4, 4);
+    if (Math.floor(S.t * 4) % 2) { ctx.fillStyle = '#f83838'; ctx.fillRect(Math.round(mx + S.jeep.x * ms) - 3, Math.round(my + S.jeep.y * ms) - 3, 6, 6); }
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(mx + (S.cam.x - VW / 2) * ms) + 0.5, Math.round(my + (S.cam.y - VH / 2) * ms) + 0.5, Math.round(VW * ms), Math.round(VH * ms));
 
     // Bottom: hints / prompts
-    ctx.textAlign = 'center';
     if (S.atBase && (S.leftBase || S.t > 3)) {
       const how = TouchControls.enabled ? 'Tap 🏁' : 'Press E';
       const txt = S.cargo.length ? `${how} to drive home with ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''}` : `${how} to end the safari and head home`;
       banner(txt, H - 60, '#ffe680');
-      if (!Game.s.perks.campRefill) banner('Tip: buy the ⛺ Camp Supply Depot at the Garage to refill fuel and nets here', H - 100, '#fff', 13);
-      else banner(S.refilling ? '⛽ Refilling fuel and nets, repairing the jeep...' : '✅ Fuel, nets and health are full — head back out, or go home', H - 100, S.refilling ? '#9fe08f' : '#fff', 14);
+      if (!Game.s.perks.campRefill) banner('Tip: buy the ⛺ Camp Supply Depot at the Garage to refill fuel and nets here', H - 104, '#fff', 13);
+      else banner(S.refilling ? '⛽ Refilling fuel and nets, repairing the jeep...' : '✅ Fuel, nets and health are full. Head back out, or go home', H - 104, S.refilling ? '#9fe08f' : '#fff', 14);
     } else if (S.t < 12) {
       const fireHint = S.stats.autoFire ? 'Space: fire  •  F: auto-fire on/off' : 'Space: fire net from the front';
       if (TouchControls.enabled) banner(`Drag on the left to drive  •  Hold 🕸️ to fire${S.stats.autoFire ? '  •  AUTO: auto-fire on/off' : ''}`, H - 30, '#fff', 13);
       else banner(`WASD / Arrows: drive   •   ${fireHint}   •   Esc: pause`, H - 30, '#fff', 13);
     }
 
-    if (S.msg) banner(S.msg.text, H * 0.22, '#fff', 18);
+    if (S.msg) Pixel.dialog(ctx, S.msg.text, W / 2, Math.max(H * 0.18, 20), Math.min(W - 24, 560), 17);
 
     if (S.paused) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 36px system-ui, sans-serif';
-      ctx.fillText('Paused', W / 2, H / 2 - 30);
-      ctx.font = '16px system-ui, sans-serif';
-      if (!TouchControls.enabled) ctx.fillText('Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12);
+      Pixel.dialog(ctx, 'Paused', W / 2, H / 2 - 60, 260, 30, '#f8d848');
+      if (!TouchControls.enabled) Pixel.text(ctx, 'Esc to resume  •  Q to call the tow truck and go home now', W / 2, H / 2 + 12, { size: 16 });
     }
-    ctx.textBaseline = 'alphabetic';
   }
 
+  // A one-line message box centred at y (shrinks long text to fit narrow screens).
   function banner(text, y, color, size = 16) {
-    ctx.font = `bold ${size}px system-ui, sans-serif`;
-    // Shrink long messages to fit narrow (portrait phone) screens.
+    ctx.font = Pixel.font(size);
     const tw = ctx.measureText(text).width;
-    if (tw > W - 40) { size = Math.max(9, size * (W - 40) / tw); ctx.font = `bold ${size}px system-ui, sans-serif`; }
-    const w = ctx.measureText(text).width + 30;
-    panel(W / 2 - w / 2, y - size * 0.9, w, size * 1.8);
-    ctx.fillStyle = color;
-    ctx.fillText(text, W / 2, y);
+    if (tw > W - 50) { size = Math.max(9, size * (W - 50) / tw); ctx.font = Pixel.font(size); }
+    const w = ctx.measureText(text).width + 32;
+    Pixel.panel(ctx, W / 2 - w / 2, y - size * 0.95 - 4, w, size * 1.9 + 8, 0.85);
+    Pixel.text(ctx, text, W / 2, y, { size, color, outline: null });
   }
 
   function touchState() {

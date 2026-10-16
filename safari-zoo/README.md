@@ -74,10 +74,10 @@ Besides standard page views and users, it sends these events: `game_open` (new v
 | `js/main.js` | Input, switching between scenes, main loop |
 | `js/touch.js` | Touch joystick and on-screen buttons for phones |
 | `js/util.js` | Helpers, emoji sprite cache, synthesized sound effects |
-| `js/sprites.js` | Procedural graphics: noise, top-down trees and rocks, ground textures, shadows |
+| `js/pixel.js` | Pixel-art graphics: tiles, trees, rocks, people, buildings, the jeep and truck, HUD panels and text |
 | `../shared/analytics.js` | Google Analytics setup (shared by all of AIrcade) |
 
-Graphics are drawn in code on a canvas, so there are no asset files: terrain, trees, rocks, water and textures are generated procedurally (`js/sprites.js`), and some icons are emoji. Animal artwork is [Fluent Emoji 3D](https://github.com/microsoft/fluentui-emoji) by Microsoft (MIT licence, see `assets/animals/LICENSE.txt`), resized and lightly recoloured for the snow leopard and arctic fox. Sounds are generated with WebAudio.
+Graphics are pixel art in the style of the handheld Zelda games, all built in code (`js/pixel.js`): the world is drawn into a small buffer (one pixel per 2 world units) and scaled up with crisp pixels, the ground is a 16×16 tile map, and the jeep and truck are little box models rendered at 32 angles. Some icons are emoji. Animal artwork is [Fluent Emoji 3D](https://github.com/microsoft/fluentui-emoji) by Microsoft (MIT licence, see `assets/animals/LICENSE.txt`), resized and lightly recoloured for the snow leopard and arctic fox, and shrunk to pixel size with snapped colours and an outline at runtime. Sounds are generated with WebAudio.
 
 ## License
 

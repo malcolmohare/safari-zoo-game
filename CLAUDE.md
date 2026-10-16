@@ -19,3 +19,4 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 - Balance numbers live in `safari-zoo/js/data.js` (species, upgrades, economy) and `Game.jeepStats()` in `safari-zoo/js/state.js`.
 - If a balance change makes old saves misleading, bump `SAVE_KEY` in `safari-zoo/js/state.js`.
 - Animal art lives in `safari-zoo/assets/animals/<species key>.png` (Fluent Emoji 3D, MIT; licence in that folder). When replacing images, bump `ASSET_VERSION` in `safari-zoo/js/util.js`.
+- Graphics are pixel art built in code in `safari-zoo/js/pixel.js` (1 art pixel = 2 world units, 16px tiles). Keep new sprites in that style: outlined, lit from the top-left, no anti-aliasing.

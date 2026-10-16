@@ -44,7 +44,8 @@ for (const def of Object.values(SPECIES)) {
   img.src = `assets/animals/${def.key}.png?v=${ASSET_VERSION}`;
   ANIMAL_ART[def.emoji] = { img, flip: def.key === 'zebra' };   // the zebra art faces right, the rest face left
 }
-const animalImg = (key) => `<img class="animal-img" src="assets/animals/${key}.png?v=${ASSET_VERSION}" alt="">`;
+// Menus show the same pixel-art animals as the game once the artwork has loaded.
+const animalImg = (key) => `<img class="animal-img" src="${(window.Pixel && Pixel.animalURL(key)) || `assets/animals/${key}.png?v=${ASSET_VERSION}`}" alt="">`;
 
 // Emoji are pre-rendered to offscreen canvases (much faster than fillText every frame).
 const _spriteCache = new Map();

@@ -1,7 +1,8 @@
 :root {
   --bg: #1f2a1b;
-  --panel: #2b3a24;
-  --card: #354830;
+  --panel: #101638;
+  --card: #1f2a5c;
+  --border: #f4f0e0;
   --text: #f3f0e2;
   --muted: #b8bfa6;
   --accent: #f2c94c;
@@ -12,7 +13,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  font-family: "Pixelify Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
 .hidden { display: none !important; }
 
 .screen { position: fixed; inset: 0; }
@@ -177,3 +178,17 @@ body.touch canvas { touch-action: none; }
 .chip .animal-img { width: 20px; height: 20px; }
 
 a.icon-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* ---- Pixel-art look: dialog-box panels with a light border, square corners ---- */
+canvas { image-rendering: pixelated; }
+.hud-title, .hud-stat, .hud-btns { background: rgba(16,22,56,0.88); border: 2px solid var(--border); border-radius: 4px; }
+#modal-box { border: 3px solid var(--border); border-radius: 6px; box-shadow: 0 0 0 3px #101638, 0 10px 40px rgba(0,0,0,0.5); }
+#modal-box h2, #modal-box h3 { color: #f8e8b0; letter-spacing: 0.5px; }
+.card { border-radius: 4px; border: 1px solid rgba(244,240,224,0.25); }
+.btn { border-radius: 4px; border: 2px solid #3a2a00; }
+.btn.cant, .btn:disabled { border-color: #2a2e26; }
+.chip { border-radius: 4px; border: 1px solid rgba(244,240,224,0.25); }
+.animal-list li { border-radius: 4px; }
+.animal-img { image-rendering: pixelated; }
+.toast { border-radius: 4px; border: 3px solid #3a2a00; }
+.pip, .lvlbar, .lvlbar .fill, .progress { border-radius: 0; }
