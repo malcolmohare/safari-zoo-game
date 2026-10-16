@@ -216,7 +216,7 @@ const Safari = (() => {
     if (S.hp <= 0 && S.outOfFuelT < 0) {
       S.outOfFuelT = 0;
       S.brokeDown = true;
-      message(`💥 Your jeep broke down! A tow truck hauls you home (-$${ECON.towFee})`, 3);
+      message(S.cargo.length ? `💥 Your jeep broke down! All ${S.cargo.length} animal${S.cargo.length > 1 ? 's' : ''} escaped. A tow truck hauls you home (-$${ECON.towFee})` : `💥 Your jeep broke down! A tow truck hauls you home (-$${ECON.towFee})`, 3.5);
       Sfx.error();
     }
   }
@@ -495,7 +495,13 @@ const Safari = (() => {
   function finish(towed) {
     if (S.ended) return;
     S.ended = true;
-    onEnd(S.cargo.slice(), towed, [...S.regionsVisited], { ...S.gathered });
+    // A breakdown lets every animal in the cage escape; running out of fuel (or calling the
+    // tow truck) lets half of them get away, rounded up.
+    const cargo = S.cargo.slice();
+    const nEscape = S.brokeDown ? cargo.length : towed ? Math.ceil(cargo.length / 2) : 0;
+    const escaped = [];
+    for (let i = 0; i < nEscape; i++) escaped.push(cargo.splice(randInt(0, cargo.length - 1), 1)[0]);
+    onEnd(cargo, towed, [...S.regionsVisited], { ...S.gathered }, escaped);
   }
 
   // ---------------- Update ----------------
@@ -504,7 +510,7 @@ const Safari = (() => {
     if (!S || S.ended) return;
     if (input.pressed('Escape') || input.pressed('KeyP')) S.paused = !S.paused;
     if (S.paused) {
-      if (input.pressed('KeyQ')) { S.paused = false; S.outOfFuelT = 0; S.fuel = 0; message('Calling the tow truck...', 3); }
+      if (input.pressed('KeyQ')) { S.paused = false; S.outOfFuelT = 0; S.fuel = 0; message(S.cargo.length ? 'Calling the tow truck... half your animals will slip away' : 'Calling the tow truck...', 3); }
       return;
     }
     S.t += dt;
@@ -517,7 +523,7 @@ const Safari = (() => {
       if (S.fuel <= 0) {
         S.fuel = 0;
         S.outOfFuelT = 0;
-        message(`Out of fuel! A tow truck hauls you home (-$${ECON.towFee})`, 3);
+        message(S.cargo.length > 0 ? `Out of fuel! Half your animals slip away while you wait for the tow truck (-$${ECON.towFee})` : `Out of fuel! A tow truck hauls you home (-$${ECON.towFee})`, 3.5);
         Sfx.error();
       }
     } else {

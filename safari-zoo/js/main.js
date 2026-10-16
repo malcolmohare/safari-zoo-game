@@ -67,12 +67,12 @@ const App = {
     Input.mouse.x = window.innerWidth / 2;
     Input.mouse.y = window.innerHeight / 3;
     Analytics.track('safari_start', { day: Game.s.day, tier: Game.s.tier });
-    Safari.start((cargo, towed, regions, gathered) => this.endSafari(cargo, towed, regions, gathered));
+    Safari.start((cargo, towed, regions, gathered, escaped) => this.endSafari(cargo, towed, regions, gathered, escaped));
   },
 
-  endSafari(cargo, towed, regions, gathered) {
-    const report = Game.endTrip(cargo, towed, regions, gathered);
-    Analytics.track('safari_end', { day: report.day, caught: cargo.length, value: report.value, towed });
+  endSafari(cargo, towed, regions, gathered, escaped) {
+    const report = Game.endTrip(cargo, towed, regions, gathered, escaped);
+    Analytics.track('safari_end', { day: report.day, caught: cargo.length, escaped: escaped.length, value: report.value, towed });
     for (const r of report.newRegions) Analytics.track('region_discovered', { region: r });
     Input.keys.clear();
     this.setScene('zoo');

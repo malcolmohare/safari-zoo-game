@@ -332,6 +332,7 @@ const UI = (() => {
     open(() => `
       <h2>🌅 Back from safari (day ${r.day})</h2>
       ${r.towed ? `<p class="neg">🚚 Your jeep had to be towed home (-${fmtMoney(r.towFee)}).</p>` : ''}
+      ${r.escaped && r.escaped.length ? `<p class="neg">🏃 Escaped while you waited for the tow truck: ${chips(r.escaped)}</p>` : ''}
       ${r.newRegions.length ? `<p>🗺️ New region${r.newRegions.length > 1 ? 's' : ''} explored: ${r.newRegions.map((b) => `<span class="chip">${BIOMES[b].icon} ${BIOMES[b].name}</span>`).join(' ')}</p>` : ''}
       <h3>🚙 Safari haul</h3>
       ${r.caught.length ? `<p>${chips(r.caught)}</p><p>Worth <b class="pos">${fmtMoney(r.value)}</b> if you sell them all. They're waiting in the 🚚 truck.</p>` : '<p class="muted">You came back empty-handed this time.</p>'}

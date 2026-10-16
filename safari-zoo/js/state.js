@@ -292,7 +292,7 @@ const Game = {
   },
 
   // Called when a safari ends: the catch goes into the truck to be sold or exhibited.
-  endTrip(cargo, towed, regionsVisited, gathered) {
+  endTrip(cargo, towed, regionsVisited, gathered, escaped = []) {
     const s = this.s;
     for (const [k, v] of Object.entries(gathered)) s.resources[k] += v;
     const towFee = towed ? Math.min(s.money, ECON.towFee) : 0;
@@ -308,7 +308,7 @@ const Game = {
     for (const r of regionsVisited) s.regionsVisited[r] = true;
 
     const value = cargo.reduce((sum, sp) => sum + SPECIES[sp].value, 0);
-    const report = { day: s.day, caught: cargo, newSpecies, newRegions, towed, towFee, value, gathered };
+    const report = { day: s.day, caught: cargo, escaped, newSpecies, newRegions, towed, towFee, value, gathered };
     s.lastReport = report;
     s.day++;
     this.save();
