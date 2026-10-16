@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Safari Zoo · AIrcade</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦒</text></svg>">
+  <link rel="stylesheet" href="css/style.css?v=27">
+</head>
+<body>
+  <div id="zoo-screen" class="screen">
+    <canvas id="zoo-canvas"></canvas>
+    <header id="hud">
+      <div class="hud-title">🦒 Safari Zoo</div>
+      <div class="hud-stat"><small>Money</small><b id="stat-money">$0</b></div>
+      <div class="hud-stat"><small>Day</small><b id="stat-day">1</b></div>
+      <div class="hud-stat"><small>Collection</small><b id="stat-collection">0</b></div>
+      <div class="hud-stat"><small>Tier</small><b id="stat-tier">1</b></div>
+      <div class="hud-stat"><small>In truck</small><b id="stat-truck">0</b></div>
+      <div class="hud-stat"><small>Resources</small><b id="stat-res"></b></div>
+      <div class="hud-btns">
+        <a class="icon-btn" href="../" title="Back to AIrcade">🕹️</a>
+        <button id="btn-mute" class="icon-btn" data-action="mute" title="Sound on/off">🔊</button>
+        <button class="icon-btn" data-action="reset" title="Start a new zoo">♻️</button>
+      </div>
+    </header>
+  </div>
+
+  <div id="safari-screen" class="screen hidden">
+    <canvas id="safari-canvas"></canvas>
+  </div>
+
+  <!-- Touch controls (only shown on touch devices) -->
+  <div id="touch-ui">
+    <div id="stick-base"><div id="stick-knob"></div></div>
+    <button class="tbtn" id="tbtn-use" data-key="KeyE">✋</button>
+    <button class="tbtn tbtn-big" id="tbtn-fire" data-key="Space">🕸️</button>
+    <button class="tbtn" id="tbtn-home" data-key="KeyE">🏁</button>
+    <button class="tbtn tbtn-small" id="tbtn-pause" data-key="Escape">⏸</button>
+    <button class="tbtn tbtn-auto" id="tbtn-auto" data-key="KeyF">AUTO</button>
+    <div id="touch-pause">
+      <button class="btn big" data-key="Escape">▶ Resume</button>
+      <button class="btn big tow" data-key="KeyQ">🚚 Call the tow truck</button>
+    </div>
+  </div>
+
+  <div id="modal" class="hidden"><div id="modal-box"></div></div>
+  <div id="toasts"></div>
+
+  <script src="../shared/analytics.js?v=27"></script>
+  <script src="js/data.js?v=27"></script>
+  <script src="js/util.js?v=27"></script>
+  <script src="js/sprites.js?v=27"></script>
+  <script src="js/state.js?v=27"></script>
+  <script src="js/safari.js?v=27"></script>
+  <script src="js/zoo.js?v=27"></script>
+  <script src="js/ui.js?v=27"></script>
+  <script src="js/touch.js?v=27"></script>
+  <script src="js/main.js?v=27"></script>
+</body>
+</html>

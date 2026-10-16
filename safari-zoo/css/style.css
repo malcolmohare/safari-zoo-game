@@ -175,3 +175,5 @@ body.touch canvas { touch-action: none; }
 .guide-sp .animal-img { width: 30px; height: 30px; }
 .guide-sp.unknown .animal-img { filter: brightness(0) opacity(0.35); }
 .chip .animal-img { width: 20px; height: 20px; }
+
+a.icon-btn { text-decoration: none; display: inline-flex; align-items: center; }

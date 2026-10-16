@@ -1,4 +1,4 @@
-// Google Analytics 4: page views plus a handful of game events.
+// Google Analytics 4 for all of AIrcade (the arcade page and every game): page views plus custom events.
 // Put your GA4 Measurement ID below (Google Analytics → Admin → Data streams → your web stream).
 // While it's empty, or when running locally, nothing is loaded or sent.
 const GA_MEASUREMENT_ID = '';
