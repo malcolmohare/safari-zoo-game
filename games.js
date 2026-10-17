@@ -17,7 +17,7 @@ const GAMES = [
     icon: '🚀',
     url: 'astro-blaster/',
     thumb: 'thumbs/astro-blaster.jpg',
-    blurb: 'Hold fire and blast the alien waves. Grab power-ups, take down the mothership, and loop around for a tougher fight.',
+    blurb: 'Hold fire and blast the alien waves. Grab power-ups, take down four different bosses, and loop around for a tougher fight.',
     tags: ['Shooter', 'Arcade', 'Endless'],
     added: '2026-10',
   },

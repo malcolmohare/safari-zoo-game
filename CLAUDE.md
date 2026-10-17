@@ -24,7 +24,7 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 ## Astro Blaster (`astro-blaster/`)
 
 - Side-scrolling shooter drawn at a fixed 320x180 in the same pixel-art style (`js/pixel.js`, `js/sprites.js`; aliens are ASCII sprite maps).
-- Tuning lives at the top of `js/game.js`: `TYPES` (aliens), `diff()` (difficulty curve), `bossKills()` (kills before the boss), boss HP and attacks in `spawnBoss`/`updateBoss`. High score is in localStorage (`astro-blaster-hi`).
+- Tuning lives in `js/game.js`: `TYPES` (aliens), `diff()` (difficulty curve), `bossKills()` (kills before the boss), weapon tiers (`shotDamage`, `SHOT_SHAPES`, `SHOT_COLS`) near the top; bosses in `BOSSES` (one per loop in `BOSS_ORDER`, each with its own HP, `update` attacks, hit `boxes` and `draw`). Boss art is in `js/sprites.js`. High score is in localStorage (`astro-blaster-hi`).
 
 ## Reel Rhythm (`reel-rhythm/`)
 

@@ -136,17 +136,21 @@ const Sprites = (() => {
   function alien(type, frame) { return P.memo('al' + type + frame, () => map(ALIENS[type].frames[frame], ALIENS[type].pal)); }
 
   // A white silhouette of a sprite, flashed when something takes a hit.
-  function flash(s, key) {
-    return P.memo('flash' + key, () => {
-      const c = P.canvas(s.width, s.height), g = c.getContext('2d');
+  const flashes = new WeakMap();
+  function flash(s) {
+    let c = flashes.get(s);
+    if (!c) {
+      c = P.canvas(s.width, s.height);
+      const g = c.getContext('2d');
       g.drawImage(s, 0, 0);
       g.globalCompositeOperation = 'source-in';
       g.fillStyle = '#ffffff'; g.fillRect(0, 0, s.width, s.height);
-      return c;
-    });
+      flashes.set(s, c);
+    }
+    return c;
   }
 
-  // ---------- The boss: a mothership whose hull colour changes every loop ----------
+  // ---------- Boss 1: the mothership, whose hull colour changes each time it returns ----------
   const BOSS_HULLS = ['#9098c0', '#c86868', '#68a878', '#c8a048', '#a868c8'];
   function boss(loop, frame) {
     const hull = BOSS_HULLS[loop % BOSS_HULLS.length];
@@ -178,6 +182,126 @@ const Sprites = (() => {
       // under-pods
       for (const px of [22, 50]) if ((x - px) ** 2 + ((y - 37) * 1.4) ** 2 <= 20) return y < 37 ? lit(0.9) : lit(0.6);
       if (y >= 40 && y <= 44 && (x === 22 || x === 50)) return frame ? '#f8a040' : '#f8e040';
+      return null;
+    })));
+  }
+
+  // ---------- Boss 2: the Space Serpent, a head trailing a chain of armoured segments ----------
+  const SERPENT_HULLS = ['#58b868', '#c85898', '#d8a038', '#5888d8'];
+  const SERPENT_HEAD = [[
+    '.......aaaaaaa......',
+    '....aaaaaaaaaaaa....',
+    '..aaaaaaaaaaaaaaaa..',
+    '.aaaaaaaYYYaaaaaaaa.',
+    'aaaaaaaYYKYaaaaaaaaa',
+    'aaaaaaaaYYYaaaaaaaaa',
+    'aaaaaaaaaaaaaaaaaaaa',
+    'WbWbWbbbbbbbbbbbbbbb',
+    'bbbbbbbbbbbbbbbbbbbb',
+    '.bbbbbbbbbbbbbbbbbbb',
+    '...bbbbbbbbbbbbbbbb.',
+    '.....bbbbbbbbbbbbb..',
+    '........bbbbbbb.....',
+  ], [
+    '.......aaaaaaa......',
+    '....aaaaaaaaaaaa....',
+    '..aaaaaaaaaaaaaaaa..',
+    '.aaaaaaaYYYaaaaaaaa.',
+    'aaaaaaaYYKYaaaaaaaaa',
+    'aaaaaaaaYYYaaaaaaaaa',
+    'WaWaWaaaaaaaaaaaaaaa',
+    '.RRRRRRbbbbbbbbbbbbb',
+    '..RRRRRbbbbbbbbbbbbb',
+    'WbWbWbbbbbbbbbbbbbbb',
+    '...bbbbbbbbbbbbbbbb.',
+    '.....bbbbbbbbbbbbb..',
+    '........bbbbbbb.....',
+  ]];
+  const hullOf = (list, mark) => list[mark % list.length];
+  function serpentHead(mark, frame, flip) {
+    const hull = hullOf(SERPENT_HULLS, mark);
+    return P.memo('sh' + hull + frame + (flip ? 1 : 0), () => {
+      const s = map(SERPENT_HEAD[frame], { a: hull, b: P.shade(hull, 0.72), Y: '#f8e040', K: '#181828', W: '#f8f8f8', R: '#701828' });
+      return flip ? P.flipH(s) : s;
+    });
+  }
+  function serpentSeg(mark, tail) {
+    const hull = hullOf(SERPENT_HULLS, mark);
+    return P.memo('ss' + hull + (tail ? 1 : 0), () => {
+      const r = tail ? 4 : 6, n = r * 2;
+      return P.outline(P.pix(n, n, (x, y) => {
+        const dx = (x + 0.5 - r) / r, dy = (y + 0.5 - r) / r, d = dx * dx + dy * dy;
+        if (d > 1) return null;
+        if (!tail && Math.abs(dx) < 0.17) return P.shade(hull, 0.55);   // the seam between scales
+        const k = -(dx + dy) * 0.5 - d * 0.3;
+        return P.shade(hull, k > 0.15 ? 1.3 : k > -0.35 ? 1 : 0.7);
+      }));
+    });
+  }
+
+  // ---------- Boss 3: the Watcher, a giant eye that blinks shut to armour itself ----------
+  const WATCHER_HULLS = ['#9858b8', '#b84848', '#4890a8', '#88a040'];
+  const EYE_W = 13, EYE_H = 9.5;
+  const eyeD = (x, y) => ((x + 0.5 - 24) / EYE_W) ** 2 + ((y + 0.5 - 24) / EYE_H) ** 2;
+  function watcher(mark, frame) {
+    const hull = hullOf(WATCHER_HULLS, mark);
+    return P.memo('wa' + hull + frame, () => P.outline(P.pix(48, 48, (x, y) => {
+      const dx = x + 0.5 - 24, dy = y + 0.5 - 24, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
+      // spikes around the rim
+      if (d > 19 && d < 23.5 && Math.cos(ang * 10) > 0.6 + (d - 19) * 0.08) return d > 22 ? (frame ? '#f8e040' : '#f89838') : P.shade(hull, 0.6);
+      if (d > 19.5) return null;
+      const e = eyeD(x, y);
+      if (e <= 1) {
+        if (e > 0.45 && P.hash(x, y, 3) < 0.07) return frame ? '#e85868' : '#c83848';   // veins
+        return dy < -5 && dx < 0 ? '#ffffff' : e > 0.7 && dy > 0 ? '#b8b0c8' : '#e4dcec';
+      }
+      if (e <= 1.3) return P.shade(hull, 0.5);   // eyelid rim
+      const k = (dx + dy) / 19.5;
+      return P.shade(hull, k < -0.55 ? 1.3 : k < 0.3 ? 1 : k < 0.8 ? 0.78 : 0.6);
+    })));
+  }
+  // The eyelid, drawn over the iris: frame 1 is half shut, frame 2 fully shut.
+  function watcherLid(mark, frame) {
+    const hull = hullOf(WATCHER_HULLS, mark);
+    return P.memo('wl' + hull + frame, () => P.pix(48, 48, (x, y) => {
+      if (eyeD(x, y) > 1.05) return null;
+      const dy = y + 0.5 - 24;
+      if (frame === 1 && dy > 0.5) return null;
+      if (dy > -0.5 && dy < 0.5) return '#181828';                     // lash line
+      if (dy >= 0.5) return P.shade(hull, 0.75);
+      return dy < -6 ? P.shade(hull, 1.3) : P.shade(hull, 1.05);
+    }));
+  }
+  function iris(charging) {
+    return P.memo('iris' + (charging ? 1 : 0), () => P.pix(10, 10, (x, y) => {
+      const dx = x + 0.5 - 5, dy = y + 0.5 - 5, d = dx * dx + dy * dy;
+      if (d > 20.25) return null;
+      if (x === 3 && y === 3) return '#ffffff';
+      if (d <= 4) return '#10101c';
+      return charging ? (d > 12 ? '#c82828' : '#f85848') : (d > 12 ? '#2868c8' : '#48b0f8');
+    }));
+  }
+
+  // ---------- Boss 4: the Gemini Twins, a pair of gunships ----------
+  const TWIN_HULLS = [['#58c8e8', '#e86848'], ['#e8d048', '#a858e8'], ['#68e888', '#e85898'], ['#e8e8f0', '#787890']];
+  function twin(i, mark, frame) {
+    const hull = hullOf(TWIN_HULLS, mark)[i];
+    return P.memo('tw' + hull + frame, () => P.outline(P.pix(38, 22, (x, y) => {
+      const lit = (k) => P.shade(hull, k);
+      if (x < 8 && (y === 10 || y === 11)) return x < 2 ? '#f8a040' : y === 10 ? '#a0a0b0' : '#585868';   // cannon
+      const cx = (x + 0.5 - 15) / 4.5, cy = (y + 0.5 - 9) / 2.5;
+      if (cx * cx + cy * cy <= 1) return cx < -0.2 && cy < 0 ? '#e8faff' : '#60b8f0';                      // cockpit
+      const bx = (x + 0.5 - 21) / 15, by = (y + 0.5 - 11) / 5.5;
+      if (bx * bx + by * by <= 1) {
+        if (y === 12 && x > 12 && x < 32) return lit(0.6);
+        if (x === 26 && y > 7 && y < 15) return (frame ? '#f8e040' : '#f84848');
+        return by < -0.4 ? lit(1.25) : by > 0.4 ? lit(0.7) : lit(1);
+      }
+      if (x >= 24 && x <= 35) {                                                                           // swept fins
+        if (y >= 1 + (35 - x) * 0.4 && y < 7) return y < 3 + (35 - x) * 0.4 ? lit(1.2) : lit(0.85);
+        if (y <= 20 - (35 - x) * 0.4 && y > 14) return lit(0.65);
+      }
+      if (x >= 36 && y >= 9 && y <= 12) return frame ? '#f8e040' : '#f89838';                            // engine
       return null;
     })));
   }
@@ -225,5 +349,5 @@ const Sprites = (() => {
     });
   }
 
-  return { SHIP, LIFE, alien, flash, boss, powerup, POWER, planet };
+  return { SHIP, LIFE, alien, flash, boss, serpentHead, serpentSeg, watcher, watcherLid, iris, twin, powerup, POWER, planet };
 })();
