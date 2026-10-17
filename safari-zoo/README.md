@@ -6,7 +6,7 @@ Part of [AIrcade](../README.md). A browser game: run a zoo, and drive a jeep thr
 
 ## Play
 
-Play it at https://malcolmohare.github.io/safari-zoo-game/safari-zoo/ (or pick it on the AIrcade page), or open `index.html` in this folder in a browser. There's no build step and no dependencies. Progress is saved in your browser's localStorage.
+Play it at https://malcolmohare.github.io/safari-zoo-game/safari-zoo/ (or pick it on the AIrcade page), or open `index.html` in this folder in a browser. There's no build step and no dependencies. Progress is saved in your browser's localStorage, in one of three save files (💾 in the top bar to switch, start a new zoo, or delete one).
 
 ## Controls
 

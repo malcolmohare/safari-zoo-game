@@ -10,10 +10,7 @@ const UI = (() => {
       if (!el) return;
       Sfx.ensure();
       if (el.dataset.action === 'mute') Sfx.muted = !Sfx.muted;
-      if (el.dataset.action === 'reset' && confirm('Start a brand new zoo? Your progress will be erased.')) {
-        Game.reset();
-        showIntro();
-      }
+      if (el.dataset.action === 'saves') openSaves();
       refresh();
     });
     $('modal').addEventListener('click', (e) => {
@@ -300,6 +297,47 @@ const UI = (() => {
     });
   }
 
+  // Save files: three separate zoos, each saved on its own.
+  function openSaves() {
+    const ago = (t) => {
+      if (!t) return '';
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+    };
+    open(() => {
+      let html = `<h2>💾 Save files</h2><p class="muted small">Each save file is a separate zoo. Your game saves automatically.</p>`;
+      for (let n = 1; n <= SAVE_SLOTS; n++) {
+        const info = Game.slotInfo(n), cur = n === Game.slot;
+        html += `<div class="card save-slot${cur ? ' selected-card' : ''}"><div class="save-info"><b>Save ${n}</b>${cur ? ' <span class="maxed">PLAYING</span>' : ''}`;
+        if (info) {
+          html += `<small>Day ${info.day} · ${fmtMoney(info.money)} · Tier ${info.tier} · ${info.species} species · ${info.animals} animals on display${info.savedAt && !cur ? ` · ${ago(info.savedAt)}` : ''}</small></div><div class="up-btns">`;
+          if (!cur) html += btn('▶ Load', 'load', { slot: n });
+          html += btn(cur ? '♻️ Start over' : '🗑️ Delete', 'delete', { slot: n }, null, 'small');
+        } else {
+          html += `<small>Empty</small></div><div class="up-btns">${btn('✨ New zoo', 'load', { slot: n })}`;
+        }
+        html += `</div></div>`;
+      }
+      return html;
+    }, (action, d) => {
+      const n = Number(d.slot);
+      if (action === 'load') {
+        Game.switchSlot(n);
+        Zoo.arriveHome();
+        close();
+        Analytics.track('save_slot_load', { slot: n, day: Game.s.day });
+        if (!Game.s.seenIntro) showIntro();
+        else notify('💾', `Save ${n} loaded`, `Day ${Game.s.day} · ${fmtMoney(Game.s.money)}`);
+      }
+      if (action === 'delete') {
+        const cur = n === Game.slot;
+        if (!confirm(cur ? `Start Save ${n} over? This zoo will be erased.` : `Delete Save ${n}? This zoo will be erased.`)) return;
+        Game.deleteSlot(n);
+        if (cur) { Zoo.arriveHome(); close(); showIntro(); }
+      }
+    });
+  }
+
   function showIntro() {
     open(() => `
       <h2>🦁 Welcome to Safari Zoo!</h2>
@@ -344,6 +382,6 @@ const UI = (() => {
   return {
     init, refresh, isModalOpen, close,
     openGarage, openOffice, openLand, openBuild, openEnclosure, openTruck, openSafariConfirm,
-    showIntro, showReport, notify,
+    openSaves, showIntro, showReport, notify,
   };
 })();
