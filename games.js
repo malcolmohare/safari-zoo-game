@@ -21,4 +21,14 @@ const GAMES = [
     tags: ['Shooter', 'Arcade', 'Endless'],
     added: '2026-10',
   },
+  {
+    id: 'reel-rhythm',
+    title: 'Reel Rhythm',
+    icon: '🎣',
+    url: 'reel-rhythm/',
+    thumb: 'thumbs/reel-rhythm.jpg',
+    blurb: 'Reel in fish to the beat, keep them happy in your aquarium shop, and sell them to picky customers.',
+    tags: ['Rhythm', 'Management', 'Mobile friendly'],
+    added: '2026-10',
+  },
 ];

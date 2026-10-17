@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Reel Rhythm · AIrcade</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎣</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <header id="hud">
+    <div class="hud-title">🎣 Reel Rhythm</div>
+    <div class="hud-stat"><small>Day</small><b id="stat-day">1</b></div>
+    <div class="hud-stat"><small>Money</small><b id="stat-money">$0</b></div>
+    <div class="hud-stat"><small>Reputation</small><b id="stat-rep" class="stars">☆</b></div>
+    <div class="hud-stat"><small>Rent</small><b id="stat-rent">$0</b></div>
+    <div id="trip-btns" class="hidden"><button class="btn small" data-action="endTrip">🏠 Head home</button></div>
+    <div class="hud-btns">
+      <a class="icon-btn" href="../" title="Back to AIrcade">🕹️</a>
+      <button id="btn-mute" class="icon-btn" data-action="mute" title="Sound on/off">🔊</button>
+      <button class="icon-btn" data-action="help" title="How to play">❓</button>
+      <button class="icon-btn" data-action="settings" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <footer id="bar"></footer>
+  <div id="rotate">↻ Turn your phone sideways for a bigger view</div>
+
+  <div id="modal" class="hidden"><div id="modal-box"></div></div>
+  <div id="toasts"></div>
+
+  <script src="../shared/analytics.js?v=1"></script>
+  <script src="js/pixel.js?v=1"></script>
+  <script src="js/data.js?v=1"></script>
+  <script src="js/state.js?v=1"></script>
+  <script src="js/audio.js?v=1"></script>
+  <script src="js/sprites.js?v=1"></script>
+  <script src="js/fishing.js?v=1"></script>
+  <script src="js/shop.js?v=1"></script>
+  <script src="js/ui.js?v=1"></script>
+  <script src="js/main.js?v=1"></script>
+</body>
+</html>

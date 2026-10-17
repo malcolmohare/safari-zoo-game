@@ -6,7 +6,7 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 
 - `index.html` + `games.js`: the AIrcade landing page and its game list. `thumbs/` holds 16:9 card screenshots.
 - `shared/analytics.js`: Google Analytics, shared by the landing page and all games.
-- One folder per game (currently `safari-zoo/` and `astro-blaster/`), each with its own `index.html`, `js/`, `css/`, `assets/`.
+- One folder per game (currently `safari-zoo/`, `astro-blaster/` and `reel-rhythm/`), each with its own `index.html`, `js/`, `css/`, `assets/`.
 
 ## Workflow
 
@@ -25,3 +25,9 @@ A collection of vanilla JS browser games, hosted on GitHub Pages from the `main`
 
 - Side-scrolling shooter drawn at a fixed 320x180 in the same pixel-art style (`js/pixel.js`, `js/sprites.js`; aliens are ASCII sprite maps).
 - Tuning lives at the top of `js/game.js`: `TYPES` (aliens), `diff()` (difficulty curve), `bossKills()` (kills before the boss), boss HP and attacks in `spawnBoss`/`updateBoss`. High score is in localStorage (`astro-blaster-hi`).
+
+## Reel Rhythm (`reel-rhythm/`)
+
+- Rhythm fishing + aquarium shop, drawn at 320x180 in the same pixel style. Fish sprites are generated from each species' `art` block (`js/sprites.js`); menus are HTML (`js/ui.js`).
+- Balance lives in `js/data.js`: `SPECIES` (tank needs, fight tempo `bpm`, chart level `lvl`, `lanes`, `holds`, reel points `need`, `value`, rod tier `rod`), `UPGRADES`, `TANKS`, `rentFor()`, `minHappy()`. Fish happiness rules are `Game.mood()` in `js/state.js`; chart patterns are `PATTERNS`/`HOLDS` in `js/fishing.js`.
+- Rhythm timing runs on the WebAudio clock (`Snd.now()`); don't time notes off frame time. Save key is `SAVE_KEY` in `js/state.js`.
