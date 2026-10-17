@@ -193,3 +193,16 @@ canvas { image-rendering: pixelated; }
 .toast { border-radius: 4px; border: 3px solid #3a2a00; }
 .pip, .lvlbar, .lvlbar .fill, .progress { border-radius: 0; }
 .guide-sp.legendary { background: radial-gradient(circle, rgba(248,216,72,0.45), transparent 70%); border-radius: 50%; color: #f8d848; }
+
+/* Save files */
+.save-slot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.save-info { flex: 1; min-width: 0; }
+.save-info small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+@media (max-width: 480px) { .save-slot { flex-wrap: wrap; } .save-slot .up-btns { width: 100%; } }
+
+/* Phones (iOS Safari especially): menus fit the visible screen, and taps on buttons register right away
+   instead of waiting to see if they're a double-tap zoom. */
+#modal-box { max-height: 90dvh; }
+#modal .btn, #modal .link, .icon-btn { touch-action: manipulation; }
+/* Short landscape phones: one row of jeep stats so the upgrades show up sooner in the Garage. */
+@media (max-height: 500px) { .stats-grid { grid-template-columns: repeat(6, 1fr); } }

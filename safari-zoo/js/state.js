@@ -2,6 +2,10 @@
 
 // Bump the version when balance changes enough that old saves would be misleading.
 const SAVE_KEY = 'safari-zoo-save-v8';
+// Three save files. Slot 1 keeps the original key so existing saves carry over.
+const SAVE_SLOTS = 3;
+const SLOT_KEY = 'safari-zoo-slot';
+const slotKey = (n) => n === 1 ? SAVE_KEY : `${SAVE_KEY}-slot${n}`;
 
 function newGameState() {
   const plots = [];
@@ -32,10 +36,12 @@ function newGameState() {
 
 const Game = {
   s: null,
+  slot: 1,
 
   load() {
+    try { this.slot = clamp(Number(localStorage.getItem(SLOT_KEY)) || 1, 1, SAVE_SLOTS); } catch (e) { this.slot = 1; }
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(slotKey(this.slot));
       if (raw) {
         const loaded = JSON.parse(raw);
         // Merge onto a fresh state so newly-added fields get defaults.
@@ -65,12 +71,38 @@ const Game = {
   },
 
   save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch (e) { /* ignore */ }
+    this.s.savedAt = Date.now();
+    try { localStorage.setItem(slotKey(this.slot), JSON.stringify(this.s)); } catch (e) { /* ignore */ }
   },
 
   reset() {
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+    try { localStorage.removeItem(slotKey(this.slot)); } catch (e) { /* ignore */ }
     this.s = newGameState();
+  },
+
+  // ---- Save files ----
+  // Save the current game, then switch to slot n (loading it, or starting fresh if it's empty).
+  switchSlot(n) {
+    this.save();
+    try { localStorage.setItem(SLOT_KEY, String(n)); } catch (e) { /* ignore */ }
+    this.load();
+    this.slot = n;
+  },
+  // A short summary of what's in slot n, or null if it's empty.
+  slotInfo(n) {
+    if (n === this.slot) return this.summary(this.s);
+    try {
+      const raw = localStorage.getItem(slotKey(n));
+      return raw ? this.summary(JSON.parse(raw)) : null;
+    } catch (e) { return null; }
+  },
+  summary(s) {
+    const animals = s.plots.reduce((sum, p) => sum + (p.enclosure ? p.enclosure.animals.length : 0), 0);
+    return { day: s.day, money: s.money, tier: s.tier, species: Object.keys(s.discovered || {}).length, animals, savedAt: s.savedAt || 0 };
+  },
+  deleteSlot(n) {
+    if (n === this.slot) { this.reset(); return; }
+    try { localStorage.removeItem(slotKey(n)); } catch (e) { /* ignore */ }
   },
 
   // ---- Queries ----
