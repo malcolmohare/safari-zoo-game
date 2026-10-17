@@ -563,7 +563,7 @@ const Pixel = (() => {
     const ck = 'an' + key + size + (faceRight ? 'R' : 'L');
     const hit = cache.get(ck);
     if (hit) return hit;
-    const def = SPECIES[key], art = def && ANIMAL_ART[def.emoji];
+    const art = ANIMAL_ART[key];
     if (!art || !art.img.complete || !art.img.naturalWidth) return null;
     const c = canvas(size, size), g = c.getContext('2d');
     g.imageSmoothingQuality = 'high';

@@ -37,12 +37,14 @@ const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 // Animal artwork: Fluent Emoji 3D by Microsoft (MIT licence, see assets/animals/LICENSE.txt).
 // Whenever an animal's emoji is drawn, its image is used instead once it has loaded.
-const ASSET_VERSION = 27;
-const ANIMAL_ART = {};   // emoji -> { img, flip }
+const ASSET_VERSION = 28;
+const ANIMAL_ART = {};         // species key -> { img, flip }
+const ANIMAL_ART_BY_EMOJI = {}; // emoji -> the first species drawn with it (some rare species share an emoji)
 for (const def of Object.values(SPECIES)) {
   const img = new Image();
   img.src = `assets/animals/${def.key}.png?v=${ASSET_VERSION}`;
-  ANIMAL_ART[def.emoji] = { img, flip: def.key === 'zebra' };   // the zebra art faces right, the rest face left
+  ANIMAL_ART[def.key] = { img, flip: def.key === 'zebra' };   // the zebra art faces right, the rest face left
+  if (!ANIMAL_ART_BY_EMOJI[def.emoji]) ANIMAL_ART_BY_EMOJI[def.emoji] = ANIMAL_ART[def.key];
 }
 // Menus show the same pixel-art animals as the game once the artwork has loaded.
 const animalImg = (key) => `<img class="animal-img" src="${(window.Pixel && Pixel.animalURL(key)) || `assets/animals/${key}.png?v=${ASSET_VERSION}`}" alt="">`;
@@ -59,7 +61,7 @@ function getSprite(emoji, size, flip) {
   const pad = Math.ceil(px * 0.25);
   c.width = c.height = px + pad * 2;
   const g = c.getContext('2d');
-  const art = ANIMAL_ART[emoji];
+  const art = ANIMAL_ART_BY_EMOJI[emoji];
   if (art) {
     if (!(art.img.complete && art.img.naturalWidth)) return getEmojiSprite(emoji, px, flip);  // not loaded yet: don't cache the fallback
     g.imageSmoothingQuality = 'high';

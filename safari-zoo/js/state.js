@@ -43,6 +43,16 @@ const Game = {
         this.s = Object.assign(fresh, loaded);
         this.s.upgrades = Object.assign(fresh.upgrades, loaded.upgrades);
         this.s.resources = Object.assign(fresh.resources, loaded.resources);
+        // The first legendaries were fantasy animals; they became real endangered species.
+        const RENAMED = { unicorn: 'whiterhino', nessie: 'baiji', trex: 'tamarin', scarab: 'addax', frostdragon: 'amurleopard' };
+        const fix = (a) => { if (a && RENAMED[a.sp]) a.sp = RENAMED[a.sp]; };
+        this.s.holding.forEach(fix); fix(this.s.carrying);
+        for (const p of this.s.plots) if (p.enclosure) p.enclosure.animals.forEach(fix);
+        for (const [o, n] of Object.entries(RENAMED)) if (this.s.discovered[o]) { this.s.discovered[n] = this.s.discovered[o]; delete this.s.discovered[o]; }
+        // Drop anything else the game no longer knows about.
+        this.s.holding = this.s.holding.filter((a) => SPECIES[a.sp]);
+        if (this.s.carrying && !SPECIES[this.s.carrying.sp]) this.s.carrying = null;
+        for (const p of this.s.plots) if (p.enclosure) p.enclosure.animals = p.enclosure.animals.filter((a) => SPECIES[a.sp]);
         // Older saves tracked time on display instead of a value multiplier.
         for (const a of this.allAnimals()) {
           if (a.mult === undefined && a.zooTime) a.mult = Math.min(ECON.maxValueMult, 1 + ECON.valueGrowthPerMin * a.zooTime / 60);
